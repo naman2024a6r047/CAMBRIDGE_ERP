@@ -160,8 +160,13 @@ const getOrCreateFeeRecord = async (student, month, year, feeType = 'monthly', t
   });
 
   if (existing) {
-    // Reconcile unpaid fee record if class fee structure has changed
-    if (existing.status === 'unpaid' && Math.abs(parseFloat(existing.total_amount || 0) - totalAmount) > 0.01) {
+    // Reconcile fee record if class fee structure has changed or if total_amount was unconfigured (0)
+    const existingTotal = parseFloat(existing.total_amount || 0);
+    const shouldReconcile = totalAmount > 0 && (
+      existingTotal === 0 ||
+      (['unpaid', 'not_generated', 'overdue'].includes(existing.status) && Math.abs(existingTotal - totalAmount) > 0.01)
+    );
+    if (shouldReconcile) {
       existing.total_amount = totalAmount;
       existing.fee_breakdown = { ...parseFeeBreakdown(existing.fee_breakdown), [feeType]: totalAmount };
       await existing.save(options);

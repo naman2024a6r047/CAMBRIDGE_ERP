@@ -126,6 +126,16 @@ router.get('/students/:id/details', protect, authorize(...FC_ROLES), async (req,
   } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
+// Normalize payment mode to lowercase ENUM ('cash', 'online', 'cheque', 'dd', 'upi')
+const normalizePaymentMode = (mode) => {
+  const m = String(mode || 'cash').trim().toLowerCase();
+  if (['cash', 'online', 'cheque', 'dd', 'upi'].includes(m)) return m;
+  if (m.includes('online') || m.includes('upi')) return 'online';
+  if (m.includes('cheque')) return 'cheque';
+  if (m.includes('dd') || m.includes('draft')) return 'dd';
+  return 'cash';
+};
+
 // POST /api/fc/collect — collect with auto-create fee record
 // (H4 fix) — wrapped in transaction to prevent race condition
 // (H3 fix) — overpayment protection added
@@ -135,22 +145,30 @@ router.post('/collect', protect, authorize(...FC_ROLES), async (req, res) => {
     const { fee_id, student_id, month, year, amount, payment_mode, remarks } = req.body;
 
     if (!amount || parseFloat(amount) <= 0) {
-      await txn.rollback();
+      if (txn && !txn.finished) await txn.rollback();
       return res.status(400).json({ message: 'Amount must be greater than 0.' });
     }
 
+    const safePaymentMode = normalizePaymentMode(payment_mode);
     let fee;
 
     if (fee_id) {
       fee = await Fee.findByPk(fee_id, {
         include: [{ model: Student, as: 'student' }],
         transaction: txn,
+        lock: txn.LOCK.UPDATE,
       });
-      if (!fee) { await txn.rollback(); return res.status(404).json({ message: 'Fee record not found.' }); }
+      if (!fee) {
+        if (txn && !txn.finished) await txn.rollback();
+        return res.status(404).json({ message: 'Fee record not found.' });
+      }
     } else {
       // Auto-create if doesn't exist
       const student = await Student.findByPk(student_id, { transaction: txn });
-      if (!student) { await txn.rollback(); return res.status(404).json({ message: 'Student not found.' }); }
+      if (!student) {
+        if (txn && !txn.finished) await txn.rollback();
+        return res.status(404).json({ message: 'Student not found.' });
+      }
 
       const { record } = await getOrCreateFeeRecord(
         student,
@@ -163,33 +181,72 @@ router.post('/collect', protect, authorize(...FC_ROLES), async (req, res) => {
       fee = await Fee.findByPk(record.id, {
         include: [{ model: Student, as: 'student' }],
         transaction: txn,
+        lock: txn.LOCK.UPDATE,
       });
     }
 
-    // (H3 fix) — overpayment protection
-    const newPaid = parseFloat(fee.paid_amount) + parseFloat(amount);
-    const totalAmount = parseFloat(fee.total_amount);
+    let payAmt = parseFloat(amount);
+    const currentPaid = parseFloat(fee.paid_amount || 0);
+    let totalAmount = parseFloat(fee.total_amount || 0) + parseFloat(fee.late_fee_amount || 0);
 
-    if (newPaid > totalAmount) {
-      await txn.rollback();
-      const remaining = totalAmount - parseFloat(fee.paid_amount);
-      return res.status(400).json({
-        message: `Overpayment not allowed. Maximum payable: ₹${remaining.toFixed(2)}.`,
-        max_payable: remaining,
-      });
+    // If totalAmount was 0 or less than the payment, adjust total_amount to prevent false overpayment failure
+    if (totalAmount < currentPaid + payAmt && payAmt > 0) {
+      totalAmount = currentPaid + payAmt;
+      fee.total_amount = totalAmount;
+    }
+
+    let newPaid = currentPaid + payAmt;
+
+    if (newPaid - totalAmount > 0.009) {
+      const remaining = Math.max(0, totalAmount - currentPaid);
+      if (remaining > 0 && payAmt > remaining) {
+        payAmt = remaining;
+        newPaid = totalAmount;
+      } else {
+        if (txn && !txn.finished) await txn.rollback();
+        return res.status(400).json({
+          message: `Overpayment not allowed. Maximum payable: ₹${remaining.toFixed(2)}.`,
+          max_payable: remaining,
+        });
+      }
+    }
+
+    if (totalAmount - newPaid <= 0.009 && newPaid > 0) {
+      newPaid = totalAmount;
     }
 
     const status = newPaid >= totalAmount ? 'paid'
                  : newPaid > 0 ? 'partial' : 'unpaid';
 
+    const receiptNumber = generateReceiptNumber();
+    const paidDate = new Date().toISOString().split('T')[0];
+
+    const updatedBreakdown = {
+      ...(typeof fee.fee_breakdown === 'object' ? fee.fee_breakdown : {}),
+      monthly: fee.total_amount,
+      transactions: [
+        ...(Array.isArray(fee.fee_breakdown?.transactions) ? fee.fee_breakdown.transactions : []),
+        {
+          amount: payAmt,
+          receipt_number: receiptNumber,
+          payment_mode: safePaymentMode,
+          paid_date: paidDate,
+          collected_by: req.user.id,
+          remarks: remarks || '',
+        }
+      ]
+    };
+
     await fee.update({
+      total_amount:   fee.total_amount,
       paid_amount:    newPaid,
-      payment_mode,
-      remarks,
+      payment_mode:   safePaymentMode,
+      remarks:        remarks || '',
       collected_by:   req.user.id,
-      paid_date:      new Date().toISOString().split('T')[0],
+      paid_date:      paidDate,
       status,
-      receipt_number: generateReceiptNumber(),
+      receipt_number: receiptNumber,
+      fee_breakdown:  updatedBreakdown,
     }, { transaction: txn });
 
     await txn.commit();
@@ -203,9 +260,11 @@ router.post('/collect', protect, authorize(...FC_ROLES), async (req, res) => {
 
     res.json({ message: 'Payment collected.', fee, receipt });
   } catch (err) {
+    if (txn && !txn.finished) {
+      try { await txn.rollback(); } catch (_) {}
+    }
     console.error('[fc][POST /collect]', err);
-    await txn.rollback();
-    res.status(500).json({ message: err.message });
+    res.status(500).json({ message: err.message || 'Fee collection failed.' });
   }
 });
 
@@ -216,13 +275,17 @@ router.post('/collect-multiple-months', protect, authorize(...FC_ROLES), async (
     const { student_id, months, year, payment_mode, remarks } = req.body;
 
     if (!student_id || !months?.length) {
-      await txn.rollback();
+      if (txn && !txn.finished) await txn.rollback();
       return res.status(400).json({ message: 'student_id and months array required.' });
     }
 
     const student = await Student.findByPk(student_id, { transaction: txn });
-    if (!student) { await txn.rollback(); return res.status(404).json({ message: 'Student not found.' }); }
+    if (!student) {
+      if (txn && !txn.finished) await txn.rollback();
+      return res.status(404).json({ message: 'Student not found.' });
+    }
 
+    const safePaymentMode = normalizePaymentMode(payment_mode);
     const results = [];
     let totalPaidInThisTransaction = 0;
     const baseReceiptNumber = generateReceiptNumber();
@@ -238,33 +301,78 @@ router.post('/collect-multiple-months', protect, authorize(...FC_ROLES), async (
         student, entryMonth, entryYear, 'monthly', txn
       );
 
-      const payAmt = parseFloat(entryAmount > 0 ? entryAmount : (record.total_amount || 0));
-      const newPaid = parseFloat(record.paid_amount || 0) + payAmt;
-      const totalAmount = parseFloat(record.total_amount || 0);
+      // Lock the record to prevent race conditions during bulk payment
+      const lockedRecord = await Fee.findByPk(record.id, {
+        include: [{ model: User, as: 'collectedByUser', attributes: ['id', 'name'] }],
+        transaction: txn,
+        lock: txn.LOCK.UPDATE
+      }) || record;
 
-      if (newPaid > totalAmount) {
-        await txn.rollback();
-        return res.status(400).json({
-          message: `Overpayment not allowed for ${entryMonth} ${entryYear}.`,
-        });
+      let payAmt = parseFloat(entryAmount > 0 ? entryAmount : (lockedRecord.total_amount || 0));
+      const currentPaid = parseFloat(lockedRecord.paid_amount || 0);
+      let totalAmount = parseFloat(lockedRecord.total_amount || 0) + parseFloat(lockedRecord.late_fee_amount || 0);
+
+      // If totalAmount was unconfigured (0) or less than the payment, adjust total_amount to avoid false overpayment failure
+      if (totalAmount < currentPaid + payAmt && payAmt > 0) {
+        totalAmount = currentPaid + payAmt;
+        lockedRecord.total_amount = totalAmount;
+      }
+
+      let newPaid = currentPaid + payAmt;
+
+      // Overpayment check with 0.009 precision tolerance
+      if (newPaid - totalAmount > 0.009) {
+        const remaining = Math.max(0, totalAmount - currentPaid);
+        if (remaining > 0 && payAmt > remaining) {
+          payAmt = remaining;
+          newPaid = totalAmount;
+        } else {
+          if (txn && !txn.finished) await txn.rollback();
+          return res.status(400).json({
+            message: `Overpayment not allowed for ${entryMonth} ${entryYear}. Max payable: ₹${remaining.toFixed(2)}.`,
+          });
+        }
+      }
+
+      if (totalAmount - newPaid <= 0.009 && newPaid > 0) {
+        newPaid = totalAmount;
       }
 
       const status = newPaid >= totalAmount ? 'paid' : newPaid > 0 ? 'partial' : 'unpaid';
       const uniqueReceiptNumber = `${baseReceiptNumber}-${i + 1}`;
+      const paidDate = new Date().toISOString().split('T')[0];
 
-      await record.update({
+      const updatedBreakdown = {
+        ...(typeof lockedRecord.fee_breakdown === 'object' ? lockedRecord.fee_breakdown : {}),
+        monthly: lockedRecord.total_amount,
+        transactions: [
+          ...(Array.isArray(lockedRecord.fee_breakdown?.transactions) ? lockedRecord.fee_breakdown.transactions : []),
+          {
+            amount: payAmt,
+            receipt_number: uniqueReceiptNumber,
+            payment_mode: safePaymentMode,
+            paid_date: paidDate,
+            collected_by: req.user.id,
+            remarks: remarks || '',
+          }
+        ]
+      };
+
+      await lockedRecord.update({
+        total_amount:   lockedRecord.total_amount,
         paid_amount:    newPaid,
-        payment_mode,
-        remarks,
+        payment_mode:   safePaymentMode,
+        remarks:        remarks || '',
         collected_by:   req.user.id,
-        paid_date:      new Date().toISOString().split('T')[0],
+        paid_date:      paidDate,
         status,
         receipt_number: uniqueReceiptNumber,
+        fee_breakdown:  updatedBreakdown,
       }, { transaction: txn });
 
       totalPaidInThisTransaction += payAmt;
       results.push({ month: entryMonth, year: entryYear, status, paid: newPaid });
-      updatedFees.push(record);
+      updatedFees.push(lockedRecord);
     }
 
     await txn.commit();
@@ -276,12 +384,14 @@ router.post('/collect-multiple-months', protect, authorize(...FC_ROLES), async (
       fee_type: 'monthly_multi',
       paid_amount: totalPaidInThisTransaction,
       total_amount: updatedFees.reduce((sum, f) => sum + parseFloat(f.total_amount || 0), 0),
+      late_fee_amount: updatedFees.reduce((sum, f) => sum + parseFloat(f.late_fee_amount || 0), 0),
       month: months.map(m => {
         const mMonth = typeof m === 'string' ? m : m.month;
         const mYear = (typeof m === 'object' && m?.year) ? parseInt(m.year) : parseInt(year);
         return mYear ? `${mMonth.slice(0, 3)} '${String(mYear).slice(-2)}` : mMonth.slice(0, 3);
       }).join(', '),
       receipt_number: baseReceiptNumber,
+      payment_mode: safePaymentMode,
       fee_breakdown: Object.fromEntries(months.map(m => {
         const mMonth = typeof m === 'string' ? m : m.month;
         const mYear = (typeof m === 'object' && m?.year) ? parseInt(m.year) : parseInt(year);
@@ -300,8 +410,11 @@ router.post('/collect-multiple-months', protect, authorize(...FC_ROLES), async (
       fee: consolidatedFeeMock,
     });
   } catch (err) {
-    await txn.rollback();
-    res.status(500).json({ message: err.message });
+    if (txn && !txn.finished) {
+      try { await txn.rollback(); } catch (_) {}
+    }
+    console.error('[fc][POST /collect-multiple-months]', err);
+    res.status(500).json({ message: err.message || 'Fee collection failed.' });
   }
 });
 

@@ -114,15 +114,21 @@ export default function FCCollect() {
         remarks:      data.remarks,
       });
       toast.success('Fee collected!');
-      setReceiptModal(r.data.receipt);
-      generateFeeReceipt(r.data.fee, feeModal.student, settings);
+      if (r.data.receipt) {
+        setReceiptModal(r.data.receipt);
+        try {
+          await generateFeeReceipt(r.data.fee, feeModal.student, settings);
+        } catch (pdfErr) {
+          console.warn('Receipt auto-download error:', pdfErr);
+        }
+      }
       setFeeModal(null);
       if (selected?.student) {
         const updated = await API.get(`/fc/students/${selected.student.id}/details`);
         setSelected(updated.data);
       }
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed.');
+      toast.error(err.response?.data?.message || err.message || 'Failed to collect fee.');
     } finally { setCollecting(false); }
   };
 
@@ -139,7 +145,11 @@ export default function FCCollect() {
       toast.success(`Fees collected for ${data.months.length} months!`);
       if (r.data.receipt) {
         setReceiptModal(r.data.receipt);
-        generateFeeReceipt(r.data.fee, multiModal, settings);
+        try {
+          await generateFeeReceipt(r.data.fee, multiModal, settings);
+        } catch (pdfErr) {
+          console.warn('Receipt auto-download error:', pdfErr);
+        }
       }
       setMultiModal(null);
       if (selected?.student) {
@@ -147,7 +157,7 @@ export default function FCCollect() {
         setSelected(updated.data);
       }
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed.');
+      toast.error(err.response?.data?.message || err.message || 'Failed to collect fees.');
     } finally { setCollecting(false); }
   };
 
