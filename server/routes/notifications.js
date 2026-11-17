@@ -191,31 +191,99 @@ router.post('/message', protect, async (req, res) => {
 
 // ── Standard Notification CRUD ────────────────────────────────────────────────
 
-// GET /api/notifications — filtered by recipient
+// GET /api/notifications — filtered by recipient & role context
 router.get('/', protect, async (req, res) => {
   try {
-    let rolePlural = req.user.role;
-    if (rolePlural === 'student') rolePlural = 'students';
-    else if (rolePlural === 'parent') rolePlural = 'parents';
-    else if (rolePlural === 'teacher') rolePlural = 'teachers';
+    const userRole = req.user.role;
+    const { role: filterRole, class: filterClass, type: filterType, sub_category: filterSubCat, priority: filterPriority } = req.query;
 
-    const where = {
-      is_active: true,
-      [Op.or]: [
+    let where = { is_active: true };
+
+    // 1. Admin & Admin2: Can see all notifications and apply filter queries
+    if (['admin', 'admin2'].includes(userRole)) {
+      if (filterRole && filterRole !== 'all') {
+        const roleTerms = filterRole === 'teachers' ? ['teachers', 'teacher'] : filterRole === 'students' ? ['students', 'student', 'parents', 'parent'] : [filterRole];
+        where.recipient_role = { [Op.in]: roleTerms };
+      }
+      if (filterClass && filterClass !== 'all') {
+        where.target_class = filterClass;
+      }
+      if (filterType && filterType !== 'all') {
+        where.type = filterType;
+      }
+      if (filterSubCat && filterSubCat !== 'all') {
+        where.sub_category = filterSubCat;
+      }
+      if (filterPriority && filterPriority !== 'all') {
+        where.priority = filterPriority;
+      }
+    } else if (userRole === 'teacher') {
+      // 2. Teachers: See broadcast, teacher-targeted (matching subject if set), or individual
+      const teacherSubject = req.user.linkedTeacher?.subject || '';
+      where[Op.or] = [
         { recipient_type: 'all' },
-        { recipient_type: 'role', recipient_role: rolePlural },
-        { recipient_type: 'role', recipient_role: req.user.role },
+        { recipient_role: 'all' },
         { recipient_type: 'individual', recipient_user_id: req.user.id },
-        { recipient_type: null, recipient_role: rolePlural },
-        { recipient_type: null, recipient_role: req.user.role },
-        { recipient_type: null, recipient_role: 'all' },
-      ]
-    };
+        {
+          [Op.and]: [
+            { recipient_role: { [Op.in]: ['teachers', 'teacher'] } },
+            {
+              [Op.or]: [
+                { target_subject: null },
+                { target_subject: '' },
+                { target_subject: 'all' },
+                ...(teacherSubject ? [{ target_subject: { [Op.like]: `%${teacherSubject}%` } }] : []),
+              ]
+            }
+          ]
+        }
+      ];
+    } else if (['student', 'parent'].includes(userRole)) {
+      // 3. Students / Parents: See broadcast, student/parent-targeted (matching class/section if set), or individual
+      const studentClass = req.user.linkedStudent?.class || '';
+      const studentSection = req.user.linkedStudent?.section || '';
+
+      const classConditions = [
+        { target_class: null },
+        { target_class: '' },
+        { target_class: 'all' },
+      ];
+      if (studentClass) classConditions.push({ target_class: studentClass });
+
+      const sectionConditions = [
+        { target_section: null },
+        { target_section: '' },
+        { target_section: 'all' },
+      ];
+      if (studentSection) sectionConditions.push({ target_section: studentSection });
+
+      where[Op.or] = [
+        { recipient_type: 'all' },
+        { recipient_role: 'all' },
+        { recipient_type: 'individual', recipient_user_id: req.user.id },
+        {
+          [Op.and]: [
+            { recipient_role: { [Op.in]: ['students', 'student', 'parents', 'parent'] } },
+            { [Op.or]: classConditions },
+            { [Op.or]: sectionConditions },
+          ]
+        }
+      ];
+    } else {
+      // 4. Other staff roles (e.g. fee collector)
+      where[Op.or] = [
+        { recipient_type: 'all' },
+        { recipient_role: 'all' },
+        { recipient_role: userRole },
+        { recipient_type: 'individual', recipient_user_id: req.user.id },
+      ];
+    }
 
     const notifications = await Notification.findAll({
       where,
       include: [{ model: User, as: 'sender', attributes: ['id', 'name'] }],
       order: [['created_at', 'DESC']],
+      limit: 100,
     });
 
     const readRecords = await NotificationRead.findAll({ where: { user_id: req.user.id } });
@@ -230,17 +298,24 @@ router.get('/', protect, async (req, res) => {
   } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
-// POST /api/notifications — with individual recipient support
+// POST /api/notifications — with custom audience, subcategory, and priority support
 router.post('/', protect, hasPermission('SEND_NOTIFICATIONS'), async (req, res) => {
   try {
     const {
-      title, message, type,
+      title,
+      message,
+      type = 'general',
       recipient_type = 'all',
       recipient_role,
       recipient_user_id,
+      target_class,
+      target_section,
+      target_subject,
+      sub_category,
+      priority = 'normal',
     } = req.body;
 
-    if (!title || !message) {
+    if (!title || !title.trim() || !message || !message.trim()) {
       return res.status(400).json({ message: 'Title and message are required.' });
     }
 
@@ -259,12 +334,22 @@ router.post('/', protect, hasPermission('SEND_NOTIFICATIONS'), async (req, res) 
       if (!targetUser) return res.status(404).json({ message: 'Target user not found.' });
     }
 
+    const cleanRole = recipient_type === 'role'
+      ? (recipient_role === 'teachers' || recipient_role === 'teacher' ? 'teachers' : recipient_role === 'students' || recipient_role === 'student' ? 'students' : recipient_role)
+      : (recipient_type === 'all' ? 'all' : null);
+
     const notification = await Notification.create({
-      title, message,
+      title:             title.trim(),
+      message:           message.trim(),
       type:              type || 'general',
       recipient_type,
-      recipient_role:    recipient_type === 'role' ? recipient_role : null,
+      recipient_role:    cleanRole,
       recipient_user_id: recipient_type === 'individual' ? recipient_user_id : null,
+      target_class:      target_class && target_class !== 'all' ? target_class : null,
+      target_section:    target_section && target_section !== 'all' ? target_section : null,
+      target_subject:    target_subject && target_subject !== 'all' ? target_subject : null,
+      sub_category:      sub_category ? sub_category.trim() : 'General',
+      priority:          ['normal', 'high', 'urgent'].includes(priority) ? priority : 'normal',
       sent_by:           req.user.id,
     });
 
@@ -275,7 +360,7 @@ router.post('/', protect, hasPermission('SEND_NOTIFICATIONS'), async (req, res) 
         console.log(`[PushRoute] Dispatching push to individual user ${recipient_user_id}`);
         sendPushToUser(recipient_user_id, title, message).catch(err => console.error('[PushRoute] Push dispatch error:', err));
       } else if (recipient_type === 'role') {
-        const targetRole = recipient_role === 'parents' ? 'parent' : recipient_role === 'teachers' ? 'teacher' : recipient_role === 'students' ? 'student' : recipient_role;
+        const targetRole = cleanRole === 'parents' ? 'parent' : cleanRole === 'teachers' ? 'teacher' : cleanRole === 'students' ? 'student' : cleanRole;
         console.log(`[PushRoute] Dispatching push to role: ${targetRole}`);
         sendPushToRole(targetRole, title, message).catch(err => console.error('[PushRoute] Push dispatch error:', err));
       } else {

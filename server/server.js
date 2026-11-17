@@ -449,6 +449,7 @@ const onListening = () => {
           migrateStudentMarksheetColumns,
           migrateActiveSession,
           migrateAdmissionRequestColumns,
+          migrateNotificationColumns,
         } = require('./utils/dbMigrator');
         await migratePendingStudents();
         await migrateFeeColumns();
@@ -458,6 +459,7 @@ const onListening = () => {
         await migrateStudentMarksheetColumns();
         await migrateActiveSession();
         await migrateAdmissionRequestColumns();
+        await migrateNotificationColumns();
 
         // Auto-create default session if none exists (Hotfix for Hostinger setup)
         const { Session, User } = require('./models');

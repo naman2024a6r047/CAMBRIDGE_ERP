@@ -644,6 +644,35 @@ async function migrateAdmissionRequestColumns() {
   }
 }
 
+async function migrateNotificationColumns() {
+  try {
+    const qi = sequelize.getQueryInterface();
+    const notifsDesc = await qi.describeTable('notifications');
+    const { DataTypes } = require('sequelize');
+
+    const notifCols = [
+      { name: 'target_class',   type: DataTypes.STRING(50) },
+      { name: 'target_section', type: DataTypes.STRING(20) },
+      { name: 'target_subject', type: DataTypes.STRING(80) },
+      { name: 'sub_category',   type: DataTypes.STRING(100) },
+      { name: 'priority',       type: DataTypes.STRING(20) },
+    ];
+
+    for (const col of notifCols) {
+      if (!notifsDesc[col.name]) {
+        console.log(`[MIGRATOR] Adding column ${col.name} to notifications`);
+        await qi.addColumn('notifications', col.name, {
+          type: col.type,
+          allowNull: true,
+        });
+      }
+    }
+    console.log('[MIGRATOR] ✅ Notification custom subcategory and targeting columns verified.');
+  } catch (err) {
+    console.error('[MIGRATOR] ❌ Notification columns migration notice:', err.message);
+  }
+}
+
 module.exports = {
   migratePendingStudents,
   migrateFeeColumns,
@@ -653,4 +682,5 @@ module.exports = {
   migrateStudentMarksheetColumns,
   migrateActiveSession,
   migrateAdmissionRequestColumns,
+  migrateNotificationColumns,
 };
