@@ -611,8 +611,12 @@ router.post('/collect-multiple-months', feeCollectionLimiter, protect, hasPermis
 
     for (let i = 0; i < months.length; i++) {
       const entry = months[i];
+      const entryMonth = typeof entry === 'string' ? entry : entry.month;
+      const entryYear = (typeof entry === 'object' && entry?.year) ? parseInt(entry.year) : parseInt(year);
+      const entryAmount = (typeof entry === 'object' && entry?.amount !== undefined) ? entry.amount : 0;
+
       const { record } = await getOrCreateFeeRecord(
-        student, entry.month, parseInt(year), 'monthly', txn
+        student, entryMonth, entryYear, 'monthly', txn
       );
 
       // (Phase 3 fix) — Lock the record to prevent race conditions during bulk payment
@@ -622,7 +626,7 @@ router.post('/collect-multiple-months', feeCollectionLimiter, protect, hasPermis
         lock: txn.LOCK.UPDATE
       });
 
-      const payAmt = round2(entry.amount);
+      const payAmt = round2(entryAmount > 0 ? entryAmount : (lockedRecord.total_amount || 0));
       const currentPaid = round2(lockedRecord.paid_amount || 0);
       const totalAmount = round2(parseFloat(lockedRecord.total_amount || 0) + parseFloat(lockedRecord.late_fee_amount || 0));
       let newPaid = round2(currentPaid + payAmt);
@@ -632,7 +636,7 @@ router.post('/collect-multiple-months', feeCollectionLimiter, protect, hasPermis
         await txn.rollback();
         const remaining = Math.max(0, round2(totalAmount - currentPaid));
         return res.status(400).json({
-          message: `Overpayment not allowed for ${entry.month}. Max payable: ₹${remaining.toFixed(2)}.`,
+          message: `Overpayment not allowed for ${entryMonth} ${entryYear}. Max payable: ₹${remaining.toFixed(2)}.`,
         });
       }
       if (totalAmount - newPaid <= 0.009 && newPaid > 0) {
@@ -666,7 +670,7 @@ router.post('/collect-multiple-months', feeCollectionLimiter, protect, hasPermis
       }, { transaction: txn });
 
       totalPaidInThisTransaction = round2(totalPaidInThisTransaction + payAmt);
-      results.push({ month: entry.month, status, paid: newPaid });
+      results.push({ month: entryMonth, year: entryYear, status, paid: newPaid });
       updatedFees.push(lockedRecord);
     }
 
@@ -681,9 +685,18 @@ router.post('/collect-multiple-months', feeCollectionLimiter, protect, hasPermis
       paid_amount: totalPaidInThisTransaction,
       total_amount: round2(updatedFees.reduce((sum, f) => sum + parseFloat(f.total_amount || 0), 0)),
       late_fee_amount: round2(updatedFees.reduce((sum, f) => sum + parseFloat(f.late_fee_amount || 0), 0)),
-      month: months.map(m => m.month.slice(0, 3)).join(', '),
+      month: months.map(m => {
+        const mMonth = typeof m === 'string' ? m : m.month;
+        const mYear = (typeof m === 'object' && m?.year) ? parseInt(m.year) : parseInt(year);
+        return mYear ? `${mMonth.slice(0, 3)} '${String(mYear).slice(-2)}` : mMonth.slice(0, 3);
+      }).join(', '),
       receipt_number: baseReceiptNumber,
-      fee_breakdown: Object.fromEntries(months.map(m => [`${m.month} Fee`, round2(m.amount)])),
+      fee_breakdown: Object.fromEntries(months.map(m => {
+        const mMonth = typeof m === 'string' ? m : m.month;
+        const mYear = (typeof m === 'object' && m?.year) ? parseInt(m.year) : parseInt(year);
+        const amt = (typeof m === 'object' && m?.amount !== undefined) ? m.amount : 0;
+        return [`${mMonth} ${mYear || ''} Fee`.trim(), round2(amt)];
+      })),
     };
 
     const receipt = buildReceiptData(consolidatedFeeMock, student, collectedByUser);

@@ -161,6 +161,60 @@ async function runFeeSyncTests() {
   assert.strictEqual(multiTotal, 3300.00);
   console.log('✅ PASS');
 
+  // TEST 9: Multi-month fee collection spanning across years (December 2026 into January & February 2027)
+  process.stdout.write('  [TEST] 9. Cross-year multi-month collection creates correct records for 2026 & 2027 ... ');
+  const [adminUser] = await User.findOrCreate({
+    where: { email: 'admin_test@test.com' },
+    defaults: {
+      name: 'Test Admin',
+      password: 'password123',
+      role: 'admin',
+      is_active: true,
+    }
+  });
+
+  const crossYearMonths = [
+    { month: 'December', year: 2026, amount: 1100.00 },
+    { month: 'January', year: 2027, amount: 1100.00 },
+    { month: 'February', year: 2027, amount: 1100.00 },
+  ];
+
+  for (const entry of crossYearMonths) {
+    const { record } = await getOrCreateFeeRecord(studentPriya, entry.month, entry.year, 'monthly');
+    assert.strictEqual(Number(record.total_amount), 1100.00);
+    assert.strictEqual(parseInt(record.year), entry.year);
+    await record.update({
+      paid_amount: entry.amount,
+      status: 'paid',
+      collected_by: adminUser.id,
+      paid_date: '2026-12-28',
+    });
+  }
+
+  // Verify DB records exist with distinct, correct calendar years
+  const decRecord = await Fee.findOne({ where: { student_id: studentPriya.id, month: 'December', year: 2026 } });
+  assert.ok(decRecord);
+  assert.strictEqual(decRecord.status, 'paid');
+  assert.strictEqual(parseInt(decRecord.year), 2026);
+  assert.strictEqual(Number(decRecord.paid_amount), 1100.00);
+
+  const janRecord = await Fee.findOne({ where: { student_id: studentPriya.id, month: 'January', year: 2027 } });
+  assert.ok(janRecord);
+  assert.strictEqual(janRecord.status, 'paid');
+  assert.strictEqual(parseInt(janRecord.year), 2027);
+  assert.strictEqual(Number(janRecord.paid_amount), 1100.00);
+
+  const febRecord = await Fee.findOne({ where: { student_id: studentPriya.id, month: 'February', year: 2027 } });
+  assert.ok(febRecord);
+  assert.strictEqual(febRecord.status, 'paid');
+  assert.strictEqual(parseInt(febRecord.year), 2027);
+  assert.strictEqual(Number(febRecord.paid_amount), 1100.00);
+
+  // Verify receipt formatting across the year boundary
+  const monthLabels = crossYearMonths.map(m => `${m.month.slice(0, 3)} '${String(m.year).slice(-2)}`).join(', ');
+  assert.strictEqual(monthLabels, "Dec '26, Jan '27, Feb '27");
+  console.log('✅ PASS');
+
   console.log('\n================================================================');
   console.log('   ALL FEE SYNCHRONIZATION TESTS PASSED (0 FAILED)');
   console.log('================================================================\n');

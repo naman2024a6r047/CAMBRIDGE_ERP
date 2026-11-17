@@ -226,17 +226,22 @@ router.post('/collect-multiple-months', protect, authorize(...FC_ROLES), async (
 
     for (let i = 0; i < months.length; i++) {
       const entry = months[i];
+      const entryMonth = typeof entry === 'string' ? entry : entry.month;
+      const entryYear = (typeof entry === 'object' && entry?.year) ? parseInt(entry.year) : parseInt(year);
+      const entryAmount = (typeof entry === 'object' && entry?.amount !== undefined) ? entry.amount : 0;
+
       const { record } = await getOrCreateFeeRecord(
-        student, entry.month, parseInt(year), 'monthly', txn
+        student, entryMonth, entryYear, 'monthly', txn
       );
 
-      const newPaid = parseFloat(record.paid_amount) + parseFloat(entry.amount);
-      const totalAmount = parseFloat(record.total_amount);
+      const payAmt = parseFloat(entryAmount > 0 ? entryAmount : (record.total_amount || 0));
+      const newPaid = parseFloat(record.paid_amount || 0) + payAmt;
+      const totalAmount = parseFloat(record.total_amount || 0);
 
       if (newPaid > totalAmount) {
         await txn.rollback();
         return res.status(400).json({
-          message: `Overpayment not allowed for ${entry.month}.`,
+          message: `Overpayment not allowed for ${entryMonth} ${entryYear}.`,
         });
       }
 
@@ -253,8 +258,8 @@ router.post('/collect-multiple-months', protect, authorize(...FC_ROLES), async (
         receipt_number: uniqueReceiptNumber,
       }, { transaction: txn });
 
-      totalPaidInThisTransaction += parseFloat(entry.amount);
-      results.push({ month: entry.month, status, paid: newPaid });
+      totalPaidInThisTransaction += payAmt;
+      results.push({ month: entryMonth, year: entryYear, status, paid: newPaid });
       updatedFees.push(record);
     }
 
@@ -266,10 +271,19 @@ router.post('/collect-multiple-months', protect, authorize(...FC_ROLES), async (
       ...updatedFees[0].toJSON(),
       fee_type: 'monthly_multi',
       paid_amount: totalPaidInThisTransaction,
-      total_amount: updatedFees.reduce((sum, f) => sum + parseFloat(f.total_amount), 0),
-      month: months.map(m => m.month.slice(0, 3)).join(', '),
+      total_amount: updatedFees.reduce((sum, f) => sum + parseFloat(f.total_amount || 0), 0),
+      month: months.map(m => {
+        const mMonth = typeof m === 'string' ? m : m.month;
+        const mYear = (typeof m === 'object' && m?.year) ? parseInt(m.year) : parseInt(year);
+        return mYear ? `${mMonth.slice(0, 3)} '${String(mYear).slice(-2)}` : mMonth.slice(0, 3);
+      }).join(', '),
       receipt_number: baseReceiptNumber,
-      fee_breakdown: Object.fromEntries(months.map(m => [`${m.month} Fee`, parseFloat(m.amount)])),
+      fee_breakdown: Object.fromEntries(months.map(m => {
+        const mMonth = typeof m === 'string' ? m : m.month;
+        const mYear = (typeof m === 'object' && m?.year) ? parseInt(m.year) : parseInt(year);
+        const amt = (typeof m === 'object' && m?.amount !== undefined) ? m.amount : 0;
+        return [`${mMonth} ${mYear || ''} Fee`.trim(), parseFloat(amt)];
+      })),
     };
 
     const receipt = buildReceiptData(consolidatedFeeMock, student, collectedByUser);
