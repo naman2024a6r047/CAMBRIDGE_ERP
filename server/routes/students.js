@@ -51,56 +51,50 @@ const ensureStudentSchema = async () => {
   if (studentSchemaEnsured) return;
   try {
     const { sequelize } = require('../models');
-    const qi = sequelize.getQueryInterface();
-    const tableDesc = await qi.describeTable('students').catch(() => null);
-    if (!tableDesc) {
-      await Student.sync();
-    } else {
-      const requiredColumns = [
-        { name: 'father_name', sql: 'ALTER TABLE `students` ADD COLUMN `father_name` VARCHAR(100) NULL;' },
-        { name: 'residential_address', sql: 'ALTER TABLE `students` ADD COLUMN `residential_address` TEXT NULL;' },
-        { name: 'passport_photo', sql: 'ALTER TABLE `students` ADD COLUMN `passport_photo` LONGTEXT NULL;' },
-        { name: 'form_no', sql: 'ALTER TABLE `students` ADD COLUMN `form_no` VARCHAR(40) NULL;' },
-        { name: 'father_occupation', sql: 'ALTER TABLE `students` ADD COLUMN `father_occupation` VARCHAR(100) NULL;' },
-        { name: 'mother_name', sql: 'ALTER TABLE `students` ADD COLUMN `mother_name` VARCHAR(100) NULL;' },
-        { name: 'mother_occupation', sql: 'ALTER TABLE `students` ADD COLUMN `mother_occupation` VARCHAR(100) NULL;' },
-        { name: 'father_phone', sql: 'ALTER TABLE `students` ADD COLUMN `father_phone` VARCHAR(20) NULL;' },
-        { name: 'father_whatsapp', sql: 'ALTER TABLE `students` ADD COLUMN `father_whatsapp` VARCHAR(20) NULL;' },
-        { name: 'mother_phone', sql: 'ALTER TABLE `students` ADD COLUMN `mother_phone` VARCHAR(20) NULL;' },
-        { name: 'mother_whatsapp', sql: 'ALTER TABLE `students` ADD COLUMN `mother_whatsapp` VARCHAR(20) NULL;' },
-        { name: 'post_office_tehsil', sql: 'ALTER TABLE `students` ADD COLUMN `post_office_tehsil` VARCHAR(120) NULL;' },
-        { name: 'district', sql: 'ALTER TABLE `students` ADD COLUMN `district` VARCHAR(80) NULL;' },
-        { name: 'pin_code', sql: 'ALTER TABLE `students` ADD COLUMN `pin_code` VARCHAR(15) NULL;' },
-        { name: 'previous_school', sql: 'ALTER TABLE `students` ADD COLUMN `previous_school` VARCHAR(150) NULL;' },
-        { name: 'enquiry_mode', sql: 'ALTER TABLE `students` ADD COLUMN `enquiry_mode` VARCHAR(50) NULL;' },
-        { name: 'category', sql: 'ALTER TABLE `students` ADD COLUMN `category` VARCHAR(50) NULL;' },
-        { name: 'aadhar_number', sql: 'ALTER TABLE `students` ADD COLUMN `aadhar_number` VARCHAR(30) NULL;' },
-        { name: 'pen_number', sql: 'ALTER TABLE `students` ADD COLUMN `pen_number` VARCHAR(30) NULL;' },
-        { name: 'family_id', sql: 'ALTER TABLE `students` ADD COLUMN `family_id` VARCHAR(30) NULL;' },
-        { name: 'profile_photo', sql: 'ALTER TABLE `students` ADD COLUMN `profile_photo` LONGTEXT NULL;' },
-        { name: 'admission_date', sql: 'ALTER TABLE `students` ADD COLUMN `admission_date` DATE NULL;' },
-        { name: 'student_status', sql: "ALTER TABLE `students` ADD COLUMN `student_status` ENUM('active','inactive','alumni','transferred','suspended') DEFAULT 'active';" },
-        { name: 'source', sql: "ALTER TABLE `students` ADD COLUMN `source` ENUM('admin_created','admission_approved') DEFAULT 'admin_created';" },
-        { name: 'admission_request_id', sql: 'ALTER TABLE `students` ADD COLUMN `admission_request_id` INT NULL;' },
-        { name: 'created_by', sql: 'ALTER TABLE `students` ADD COLUMN `created_by` INT NULL;' },
-        { name: 'approval_status', sql: "ALTER TABLE `students` ADD COLUMN `approval_status` ENUM('pending','approved','rejected') DEFAULT 'approved';" },
-        { name: 'approved_by', sql: 'ALTER TABLE `students` ADD COLUMN `approved_by` INT NULL;' },
-        { name: 'approved_at', sql: 'ALTER TABLE `students` ADD COLUMN `approved_at` DATETIME NULL;' },
-        { name: 'rejection_reason', sql: 'ALTER TABLE `students` ADD COLUMN `rejection_reason` TEXT NULL;' },
-        { name: 'parent_address', sql: 'ALTER TABLE `students` ADD COLUMN `parent_address` TEXT NULL;' },
-        { name: 'parent_occupation', sql: 'ALTER TABLE `students` ADD COLUMN `parent_occupation` VARCHAR(100) NULL;' },
-      ];
-      for (const col of requiredColumns) {
-        if (!tableDesc[col.name]) {
-          try { await sequelize.query(col.sql); } catch (e) {}
-        }
-      }
+    const requiredColumns = [
+      'ALTER TABLE `students` ADD COLUMN `father_name` VARCHAR(100) NULL;',
+      'ALTER TABLE `students` ADD COLUMN `residential_address` TEXT NULL;',
+      'ALTER TABLE `students` ADD COLUMN `passport_photo` LONGTEXT NULL;',
+      'ALTER TABLE `students` ADD COLUMN `form_no` VARCHAR(40) NULL;',
+      'ALTER TABLE `students` ADD COLUMN `father_occupation` VARCHAR(100) NULL;',
+      'ALTER TABLE `students` ADD COLUMN `mother_name` VARCHAR(100) NULL;',
+      'ALTER TABLE `students` ADD COLUMN `mother_occupation` VARCHAR(100) NULL;',
+      'ALTER TABLE `students` ADD COLUMN `father_phone` VARCHAR(20) NULL;',
+      'ALTER TABLE `students` ADD COLUMN `father_whatsapp` VARCHAR(20) NULL;',
+      'ALTER TABLE `students` ADD COLUMN `mother_phone` VARCHAR(20) NULL;',
+      'ALTER TABLE `students` ADD COLUMN `mother_whatsapp` VARCHAR(20) NULL;',
+      'ALTER TABLE `students` ADD COLUMN `post_office_tehsil` VARCHAR(120) NULL;',
+      'ALTER TABLE `students` ADD COLUMN `district` VARCHAR(80) NULL;',
+      'ALTER TABLE `students` ADD COLUMN `pin_code` VARCHAR(15) NULL;',
+      'ALTER TABLE `students` ADD COLUMN `previous_school` VARCHAR(150) NULL;',
+      'ALTER TABLE `students` ADD COLUMN `enquiry_mode` VARCHAR(50) NULL;',
+      'ALTER TABLE `students` ADD COLUMN `category` VARCHAR(50) NULL;',
+      'ALTER TABLE `students` ADD COLUMN `aadhar_number` VARCHAR(30) NULL;',
+      'ALTER TABLE `students` ADD COLUMN `pen_number` VARCHAR(30) NULL;',
+      'ALTER TABLE `students` ADD COLUMN `family_id` VARCHAR(30) NULL;',
+      'ALTER TABLE `students` ADD COLUMN `profile_photo` LONGTEXT NULL;',
+      'ALTER TABLE `students` ADD COLUMN `admission_date` DATE NULL;',
+      "ALTER TABLE `students` ADD COLUMN `student_status` ENUM('active','inactive','alumni','transferred','suspended') DEFAULT 'active';",
+      "ALTER TABLE `students` ADD COLUMN `source` ENUM('admin_created','admission_approved') DEFAULT 'admin_created';",
+      'ALTER TABLE `students` ADD COLUMN `admission_request_id` INT NULL;',
+      'ALTER TABLE `students` ADD COLUMN `created_by` INT NULL;',
+      "ALTER TABLE `students` ADD COLUMN `approval_status` ENUM('pending','approved','rejected') DEFAULT 'approved';",
+      'ALTER TABLE `students` ADD COLUMN `approved_by` INT NULL;',
+      'ALTER TABLE `students` ADD COLUMN `approved_at` DATETIME NULL;',
+      'ALTER TABLE `students` ADD COLUMN `rejection_reason` TEXT NULL;',
+      'ALTER TABLE `students` ADD COLUMN `parent_address` TEXT NULL;',
+      'ALTER TABLE `students` ADD COLUMN `parent_occupation` VARCHAR(100) NULL;',
+    ];
+    for (const sql of requiredColumns) {
+      try { await sequelize.query(sql); } catch (e) {}
     }
     studentSchemaEnsured = true;
   } catch (err) {
     console.warn('[students] Schema ensure notice:', err.message);
   }
 };
+
+ensureStudentSchema().catch(() => {});
 
 // GET /api/students — with category filters
 router.get('/', protect, hasPermission('VIEW_STUDENTS'), async (req, res) => {
@@ -195,6 +189,8 @@ router.get('/', protect, hasPermission('VIEW_STUDENTS'), async (req, res) => {
 
       students = rows.map(s => {
         const sData = s.toJSON();
+        sData.profile_photo = sData.profile_photo || sData.passport_photo || null;
+        sData.passport_photo = sData.passport_photo || sData.profile_photo || null;
         const sFees = studentFees[s.id];
         if (!sFees || sFees.total === 0) {
           sData.fee_status = 'not_generated';
@@ -730,7 +726,10 @@ router.get('/:id', protect, hasPermission('VIEW_STUDENTS'), async (req, res) => 
       }
     }
 
-    res.json(student);
+    const sData = typeof student.toJSON === 'function' ? student.toJSON() : { ...student };
+    sData.profile_photo = sData.profile_photo || sData.passport_photo || null;
+    sData.passport_photo = sData.passport_photo || sData.profile_photo || null;
+    res.json(sData);
   } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
@@ -761,6 +760,10 @@ router.post('/', protect, authorize('admin', 'admin2', 'fee_collector'), validat
       }
     }
 
+    const photoToSave = safeData.profile_photo || safeData.passport_photo || null;
+    safeData.profile_photo = photoToSave;
+    safeData.passport_photo = photoToSave;
+
     const student = await Student.create({
       ...safeData,
       session_id:     sessionId || null,
@@ -789,6 +792,7 @@ router.post('/', protect, authorize('admin', 'admin2', 'fee_collector'), validat
       linked_student_id: student.id,
       is_active: isApproved,
       phone: student.parent_phone,
+      profile_photo: photoToSave,
     }, { transaction: txn });
 
     // Auto-assign fees according to the class fee structure selected by admin
@@ -1088,10 +1092,19 @@ router.post('/bulk-upload', protect, authorize('admin', 'admin2', 'fee_collector
 router.put('/:id', profileUpdateLimiter, protect, hasPermission('MANAGE_STUDENTS'), validateStudentUpdate, async (req, res) => {
   try {
     const safeData = pick(req.body, STUDENT_UPDATE_FIELDS);
+    if (safeData.profile_photo && !safeData.passport_photo) safeData.passport_photo = safeData.profile_photo;
+    if (safeData.passport_photo && !safeData.profile_photo) safeData.profile_photo = safeData.passport_photo;
     const [updated] = await Student.update(safeData, { where: { id: req.params.id } });
     if (!updated) return res.status(404).json({ message: 'Student not found.' });
+
+    if (safeData.profile_photo) {
+      await User.update({ profile_photo: safeData.profile_photo }, { where: { linked_student_id: req.params.id } }).catch(() => {});
+    }
     const student = await Student.findByPk(req.params.id);
-    res.json(student);
+    const sData = typeof student.toJSON === 'function' ? student.toJSON() : { ...student };
+    sData.profile_photo = sData.profile_photo || sData.passport_photo || null;
+    sData.passport_photo = sData.passport_photo || sData.profile_photo || null;
+    res.json(sData);
   } catch (err) { res.status(400).json({ message: err.message }); }
 });
 

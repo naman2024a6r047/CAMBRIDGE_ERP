@@ -3,7 +3,7 @@ const sequelize = require('../config/database');
 
 const AdmissionRequest = sequelize.define('AdmissionRequest', {
   id:                 { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
-  form_no:            { type: DataTypes.STRING(40), unique: true, allowNull: true },
+  form_no:            { type: DataTypes.STRING(40), allowNull: true },
   
   // 1. Student details
   first_name:         { type: DataTypes.STRING(60),  allowNull: false },

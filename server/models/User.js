@@ -17,7 +17,7 @@ const User = sequelize.define('User', {
   linked_teacher_id:  { type: DataTypes.INTEGER, allowNull: true },
   is_active:          { type: DataTypes.BOOLEAN, defaultValue: true },
   phone:              { type: DataTypes.STRING(15) },
-  profile_photo:      { type: DataTypes.STRING(255) },
+  profile_photo:      { type: DataTypes.TEXT('long'), allowNull: true },
   // (M5 fix) — track password change time for token invalidation
   password_changed_at: { type: DataTypes.DATE, allowNull: true },
   login_attempts:     { type: DataTypes.INTEGER, defaultValue: 0 },

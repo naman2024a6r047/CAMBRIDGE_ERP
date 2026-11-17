@@ -185,7 +185,8 @@ const drawStudentPhoto = (doc, x, y, w, h, photoBase64, studentName = '') => {
 
   if (photoBase64) {
     try {
-      doc.addImage(photoBase64, 'JPEG', x + 0.8, y + 0.8, w - 1.6, h - 1.6);
+      const format = (typeof photoBase64 === 'string' && (photoBase64.startsWith('data:image/png') || photoBase64.startsWith('data:image/webp') || photoBase64.includes('image/png'))) ? 'PNG' : 'JPEG';
+      doc.addImage(photoBase64, format, x + 0.8, y + 0.8, w - 1.6, h - 1.6);
       doc.setDrawColor(203, 213, 225);
       doc.setLineWidth(0.2);
       doc.rect(x + 0.8, y + 0.8, w - 1.6, h - 1.6, 'S');
@@ -1039,10 +1040,12 @@ export const generateReportCard = async (student, result, settings = {}, attenda
   const logoUrl = settings?.school_logo_url || settings?.admin_profile_photo || settings?.logo_url || settings?.school_logo;
   const logoBase64 = await loadLogoBase64(logoUrl);
   const stuPhotoUrl = student?.profile_photo || 
+                      student?.passport_photo ||
                       student?.photo_url || 
                       student?.photo || 
                       student?.avatar || 
                       result?.student?.profile_photo || 
+                      result?.student?.passport_photo || 
                       result?.student?.photo_url;
   const studentPhotoBase64 = await loadPhotoBase64(stuPhotoUrl);
 
@@ -1439,7 +1442,7 @@ export const generateConsolidatedMarksheet = async (student, detailData, setting
 
   const logoUrl = settings?.school_logo_url || settings?.admin_profile_photo || settings?.logo_url || settings?.school_logo;
   const logoBase64 = await loadLogoBase64(logoUrl);
-  const stuPhotoUrl = stu?.profile_photo || stu?.photo_url || stu?.photo || stu?.avatar;
+  const stuPhotoUrl = stu?.profile_photo || stu?.passport_photo || stu?.photo_url || stu?.photo || stu?.avatar;
   const studentPhotoBase64 = await loadPhotoBase64(stuPhotoUrl);
 
   // Single Page: Official Master Cumulative Marksheet Cum Certificate
@@ -1758,7 +1761,8 @@ export const generateAdmissionFormPDF = async (admission, settings = {}) => {
   const logoUrl = settings.school_logo_url || settings.logo_url || '';
   const logoBase64 = await loadLogoBase64(logoUrl);
 
-  const photoBase64 = admission.passport_photo ? await loadPhotoBase64(admission.passport_photo) : null;
+  const rawPhoto = admission.passport_photo || admission.profile_photo;
+  const photoBase64 = rawPhoto ? await loadPhotoBase64(rawPhoto) : null;
 
   // Outer Border
   doc.setDrawColor(30, 58, 138); // Navy blue
@@ -1886,7 +1890,8 @@ export const generateAdmissionFormPDF = async (admission, settings = {}) => {
 
   if (photoBase64) {
     try {
-      doc.addImage(photoBase64, 'JPEG', photoBoxX + 1, photoBoxY + 1, photoBoxW - 2, photoBoxH - 2);
+      const format = (typeof photoBase64 === 'string' && (photoBase64.startsWith('data:image/png') || photoBase64.startsWith('data:image/webp') || photoBase64.includes('image/png'))) ? 'PNG' : 'JPEG';
+      doc.addImage(photoBase64, format, photoBoxX + 1, photoBoxY + 1, photoBoxW - 2, photoBoxH - 2);
     } catch {
       doc.setFontSize(6.5);
       doc.setTextColor(100, 116, 139);

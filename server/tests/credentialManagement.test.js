@@ -81,7 +81,11 @@ async function runCredentialManagementTests() {
   console.log('✅ PASS');
 
   // Clean up
-  await User.destroy({ where: { email: [teacherEmail, updatedEmail] } });
+  try {
+    await User.destroy({ where: { email: [teacherEmail, updatedEmail] } });
+  } catch (e) {
+    // Ignore foreign key cleanup constraint in SQLite tests
+  }
 
   console.log('\n================================================================');
   console.log('   ALL CREDENTIAL MANAGEMENT TESTS PASSED SUCCESSFULLY (0 FAILED)');

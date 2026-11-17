@@ -421,7 +421,11 @@ const onListening = () => {
           `ALTER TABLE \`users\` ADD COLUMN \`login_attempts\` INT DEFAULT 0;`,
           `ALTER TABLE \`users\` ADD COLUMN \`lock_until\` DATETIME NULL;`,
           `ALTER TABLE \`users\` ADD COLUMN \`password_changed_at\` DATETIME NULL;`,
-          `ALTER TABLE \`users\` ADD COLUMN \`profile_photo\` VARCHAR(255) NULL;`,
+          `ALTER TABLE \`users\` ADD COLUMN \`profile_photo\` LONGTEXT NULL;`,
+          `ALTER TABLE \`users\` MODIFY COLUMN \`profile_photo\` LONGTEXT NULL;`,
+          `ALTER TABLE \`students\` MODIFY COLUMN \`profile_photo\` LONGTEXT NULL;`,
+          `ALTER TABLE \`students\` MODIFY COLUMN \`passport_photo\` LONGTEXT NULL;`,
+          `ALTER TABLE \`admission_requests\` MODIFY COLUMN \`passport_photo\` LONGTEXT NULL;`,
           `ALTER TABLE \`users\` ADD COLUMN \`phone\` VARCHAR(15) NULL;`,
           // Teacher staff_type column
           `ALTER TABLE \`teachers\` ADD COLUMN \`staff_type\` VARCHAR(50) DEFAULT 'Teacher';`,
@@ -505,6 +509,10 @@ const onListening = () => {
       console.log('[DB] ✅ Database tables verified');
       try {
         const {
+          migrateAdmissionRequestColumns,
+          migrateUserColumns,
+          migrateTeacherColumns,
+          migrateStudentPhotos,
           migratePendingStudents,
           migrateFeeColumns,
           migrateTeacherSubjectColumn,
@@ -512,11 +520,12 @@ const onListening = () => {
           migrateSessionAttendanceAndPromotionColumns,
           migrateStudentMarksheetColumns,
           migrateActiveSession,
-          migrateAdmissionRequestColumns,
           migrateNotificationColumns,
-          migrateTeacherColumns,
-          migrateUserColumns,
         } = require('./utils/dbMigrator');
+        await migrateAdmissionRequestColumns();
+        await migrateUserColumns();
+        await migrateTeacherColumns();
+        await migrateStudentPhotos();
         await migratePendingStudents();
         await migrateFeeColumns();
         await migrateTeacherSubjectColumn();
@@ -524,10 +533,7 @@ const onListening = () => {
         await migrateSessionAttendanceAndPromotionColumns();
         await migrateStudentMarksheetColumns();
         await migrateActiveSession();
-        await migrateAdmissionRequestColumns();
         await migrateNotificationColumns();
-        await migrateTeacherColumns();
-        await migrateUserColumns();
 
         // Auto-create default session if none exists (Hotfix for Hostinger setup)
         const { Session, User } = require('./models');

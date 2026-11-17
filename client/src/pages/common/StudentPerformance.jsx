@@ -508,7 +508,7 @@ export default function StudentPerformance() {
                       {/* Student Info */}
                       <td className="py-3.5 px-4">
                         <div className="flex items-center gap-3">
-                          <Avatar name={`${s.first_name} ${s.last_name}`} size="md" />
+                          <Avatar name={`${s.first_name} ${s.last_name}`} size="md" src={s.profile_photo || s.passport_photo} />
                           <div className="min-w-0">
                             <div className="font-semibold text-gray-900 group-hover:text-blue-600 transition flex items-center gap-1.5">
                               {s.first_name} {s.last_name}
@@ -658,7 +658,7 @@ export default function StudentPerformance() {
                 <div>
                   <div className="flex items-start justify-between gap-3 mb-3">
                     <div className="flex items-center gap-3">
-                      <Avatar name={`${s.first_name} ${s.last_name}`} size="lg" />
+                      <Avatar name={`${s.first_name} ${s.last_name}`} size="lg" src={s.profile_photo || s.passport_photo} />
                       <div>
                         <h4 className="font-bold text-gray-900 leading-snug">
                           {s.first_name} {s.last_name}
@@ -756,7 +756,7 @@ export default function StudentPerformance() {
               <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-blue-950 text-white rounded-2xl p-5 shadow-sm">
                 <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                   <div className="flex items-center gap-4">
-                    <Avatar name={`${detailData.student.first_name} ${detailData.student.last_name}`} size="lg" />
+                    <Avatar name={`${detailData.student.first_name} ${detailData.student.last_name}`} size="lg" src={detailData.student.profile_photo || detailData.student.passport_photo} />
                     <div>
                       <div className="flex items-center gap-2">
                         <h3 className="text-xl font-bold text-white">

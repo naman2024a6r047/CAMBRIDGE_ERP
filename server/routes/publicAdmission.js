@@ -30,41 +30,34 @@ let schemaEnsured = false;
 const ensureAdmissionSchema = async () => {
   if (schemaEnsured) return;
   try {
-    const qi = sequelize.getQueryInterface();
-    const tableDesc = await qi.describeTable('admission_requests').catch(() => null);
-    if (!tableDesc) {
-      await AdmissionRequest.sync();
-    } else {
-      const requiredColumns = [
-        { name: 'form_no',            sql: 'ALTER TABLE `admission_requests` ADD COLUMN `form_no` VARCHAR(40) NULL;' },
-        { name: 'father_name',        sql: 'ALTER TABLE `admission_requests` ADD COLUMN `father_name` VARCHAR(100) NULL;' },
-        { name: 'father_occupation',  sql: 'ALTER TABLE `admission_requests` ADD COLUMN `father_occupation` VARCHAR(100) NULL;' },
-        { name: 'father_phone',       sql: 'ALTER TABLE `admission_requests` ADD COLUMN `father_phone` VARCHAR(20) NULL;' },
-        { name: 'father_whatsapp',    sql: 'ALTER TABLE `admission_requests` ADD COLUMN `father_whatsapp` VARCHAR(20) NULL;' },
-        { name: 'mother_name',        sql: 'ALTER TABLE `admission_requests` ADD COLUMN `mother_name` VARCHAR(100) NULL;' },
-        { name: 'mother_occupation',  sql: 'ALTER TABLE `admission_requests` ADD COLUMN `mother_occupation` VARCHAR(100) NULL;' },
-        { name: 'mother_phone',       sql: 'ALTER TABLE `admission_requests` ADD COLUMN `mother_phone` VARCHAR(20) NULL;' },
-        { name: 'mother_whatsapp',    sql: 'ALTER TABLE `admission_requests` ADD COLUMN `mother_whatsapp` VARCHAR(20) NULL;' },
-        { name: 'aadhar_number',      sql: 'ALTER TABLE `admission_requests` ADD COLUMN `aadhar_number` VARCHAR(30) NULL;' },
-        { name: 'passport_photo',     sql: 'ALTER TABLE `admission_requests` ADD COLUMN `passport_photo` LONGTEXT NULL;' },
-        { name: 'residential_address',sql: 'ALTER TABLE `admission_requests` ADD COLUMN `residential_address` TEXT NULL;' },
-        { name: 'post_office_tehsil', sql: 'ALTER TABLE `admission_requests` ADD COLUMN `post_office_tehsil` VARCHAR(120) NULL;' },
-        { name: 'district',           sql: 'ALTER TABLE `admission_requests` ADD COLUMN `district` VARCHAR(80) NULL;' },
-        { name: 'pin_code',           sql: 'ALTER TABLE `admission_requests` ADD COLUMN `pin_code` VARCHAR(15) NULL;' },
-        { name: 'application_date',   sql: 'ALTER TABLE `admission_requests` ADD COLUMN `application_date` DATE NULL;' },
-        { name: 'enquiry_mode',       sql: 'ALTER TABLE `admission_requests` ADD COLUMN `enquiry_mode` VARCHAR(50) NULL;' },
-        { name: 'remarks',            sql: 'ALTER TABLE `admission_requests` ADD COLUMN `remarks` TEXT NULL;' },
-        { name: 'source',             sql: 'ALTER TABLE `admission_requests` ADD COLUMN `source` VARCHAR(40) DEFAULT \'public_portal\';' },
-        { name: 'documents_submitted',sql: 'ALTER TABLE `admission_requests` ADD COLUMN `documents_submitted` JSON NULL;' },
-      ];
-      for (const col of requiredColumns) {
-        if (!tableDesc[col.name]) {
-          try {
-            await sequelize.query(col.sql);
-          } catch (e) {
-            // ER_DUP_FIELDNAME or already added
-          }
-        }
+    const requiredColumns = [
+      { name: 'form_no',            sql: 'ALTER TABLE `admission_requests` ADD COLUMN `form_no` VARCHAR(40) NULL;' },
+      { name: 'father_name',        sql: 'ALTER TABLE `admission_requests` ADD COLUMN `father_name` VARCHAR(100) NULL;' },
+      { name: 'father_occupation',  sql: 'ALTER TABLE `admission_requests` ADD COLUMN `father_occupation` VARCHAR(100) NULL;' },
+      { name: 'father_phone',       sql: 'ALTER TABLE `admission_requests` ADD COLUMN `father_phone` VARCHAR(20) NULL;' },
+      { name: 'father_whatsapp',    sql: 'ALTER TABLE `admission_requests` ADD COLUMN `father_whatsapp` VARCHAR(20) NULL;' },
+      { name: 'mother_name',        sql: 'ALTER TABLE `admission_requests` ADD COLUMN `mother_name` VARCHAR(100) NULL;' },
+      { name: 'mother_occupation',  sql: 'ALTER TABLE `admission_requests` ADD COLUMN `mother_occupation` VARCHAR(100) NULL;' },
+      { name: 'mother_phone',       sql: 'ALTER TABLE `admission_requests` ADD COLUMN `mother_phone` VARCHAR(20) NULL;' },
+      { name: 'mother_whatsapp',    sql: 'ALTER TABLE `admission_requests` ADD COLUMN `mother_whatsapp` VARCHAR(20) NULL;' },
+      { name: 'aadhar_number',      sql: 'ALTER TABLE `admission_requests` ADD COLUMN `aadhar_number` VARCHAR(30) NULL;' },
+      { name: 'passport_photo',     sql: 'ALTER TABLE `admission_requests` ADD COLUMN `passport_photo` LONGTEXT NULL;' },
+      { name: 'residential_address',sql: 'ALTER TABLE `admission_requests` ADD COLUMN `residential_address` TEXT NULL;' },
+      { name: 'post_office_tehsil', sql: 'ALTER TABLE `admission_requests` ADD COLUMN `post_office_tehsil` VARCHAR(120) NULL;' },
+      { name: 'district',           sql: 'ALTER TABLE `admission_requests` ADD COLUMN `district` VARCHAR(80) NULL;' },
+      { name: 'pin_code',           sql: 'ALTER TABLE `admission_requests` ADD COLUMN `pin_code` VARCHAR(15) NULL;' },
+      { name: 'application_date',   sql: 'ALTER TABLE `admission_requests` ADD COLUMN `application_date` DATE NULL;' },
+      { name: 'enquiry_mode',       sql: 'ALTER TABLE `admission_requests` ADD COLUMN `enquiry_mode` VARCHAR(50) NULL;' },
+      { name: 'remarks',            sql: 'ALTER TABLE `admission_requests` ADD COLUMN `remarks` TEXT NULL;' },
+      { name: 'source',             sql: 'ALTER TABLE `admission_requests` ADD COLUMN `source` VARCHAR(40) DEFAULT \'public_portal\';' },
+      { name: 'documents_submitted',sql: 'ALTER TABLE `admission_requests` ADD COLUMN `documents_submitted` JSON NULL;' },
+    ];
+
+    for (const col of requiredColumns) {
+      try {
+        await sequelize.query(col.sql);
+      } catch (e) {
+        // Safe to ignore duplicate column errors (ER_DUP_FIELDNAME / 1060)
       }
     }
     schemaEnsured = true;
@@ -72,6 +65,9 @@ const ensureAdmissionSchema = async () => {
     console.warn('[Admission] Schema check notice:', err.message);
   }
 };
+
+// Immediate background execution on module load
+ensureAdmissionSchema().catch(() => {});
 
 // Helper to generate sequential Form No: ICS-YYYY-XXXX
 const generateFormNumber = async () => {
@@ -101,11 +97,17 @@ const generateFormNumber = async () => {
 
   // Double check uniqueness safely
   try {
-    let exists = await AdmissionRequest.findOne({ where: { form_no: formNo } });
+    let exists = await AdmissionRequest.findOne({ 
+      where: { form_no: formNo },
+      attributes: ['id', 'form_no']
+    });
     let counter = 1;
     while (exists && counter < 50) {
       formNo = `ICS-${currentYear}-${String(nextSeq + counter).padStart(4, '0')}`;
-      exists = await AdmissionRequest.findOne({ where: { form_no: formNo } });
+      exists = await AdmissionRequest.findOne({ 
+        where: { form_no: formNo },
+        attributes: ['id', 'form_no']
+      });
       counter++;
     }
   } catch (err) {

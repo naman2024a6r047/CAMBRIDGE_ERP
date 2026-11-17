@@ -579,6 +579,16 @@ async function migrateActiveSession() {
 
 async function migrateAdmissionRequestColumns() {
   try {
+    const rawAdmCols = [
+      'ALTER TABLE `admission_requests` ADD COLUMN `form_no` VARCHAR(40) NULL;',
+      'ALTER TABLE `admission_requests` ADD COLUMN `passport_photo` LONGTEXT NULL;',
+      'ALTER TABLE `students` ADD COLUMN `form_no` VARCHAR(40) NULL;',
+      'ALTER TABLE `students` ADD COLUMN `passport_photo` LONGTEXT NULL;',
+      'ALTER TABLE `students` ADD COLUMN `profile_photo` LONGTEXT NULL;'
+    ];
+    for (const sql of rawAdmCols) {
+      try { await sequelize.query(sql); } catch (e) {}
+    }
     const qi = sequelize.getQueryInterface();
     const { DataTypes } = require('sequelize');
 
@@ -728,7 +738,7 @@ async function migrateUserColumns() {
     const cols = [
       { name: 'linked_teacher_id',   type: DataTypes.INTEGER },
       { name: 'linked_student_id',   type: DataTypes.INTEGER },
-      { name: 'profile_photo',       type: DataTypes.STRING(255) },
+      { name: 'profile_photo',       type: DataTypes.TEXT('long') },
       { name: 'phone',               type: DataTypes.STRING(15) },
       { name: 'password_changed_at', type: DataTypes.DATE },
       { name: 'login_attempts',     type: DataTypes.INTEGER },
@@ -750,6 +760,84 @@ async function migrateUserColumns() {
   }
 }
 
+
+async function migrateStudentPhotos() {
+  const { Op } = require('sequelize');
+  try {
+    const dialect = typeof sequelize.getDialect === 'function' ? sequelize.getDialect() : '';
+    if (dialect === 'mysql') {
+      await sequelize.query('ALTER TABLE `users` MODIFY COLUMN `profile_photo` LONGTEXT NULL;').catch(() => {});
+      await sequelize.query('ALTER TABLE `students` MODIFY COLUMN `profile_photo` LONGTEXT NULL;').catch(() => {});
+      await sequelize.query('ALTER TABLE `students` MODIFY COLUMN `passport_photo` LONGTEXT NULL;').catch(() => {});
+      await sequelize.query('ALTER TABLE `admission_requests` MODIFY COLUMN `passport_photo` LONGTEXT NULL;').catch(() => {});
+    }
+
+    // 1. Copy between passport_photo and profile_photo in students table
+    await sequelize.query(`
+      UPDATE students 
+      SET profile_photo = passport_photo 
+      WHERE (profile_photo IS NULL OR profile_photo = '') 
+        AND passport_photo IS NOT NULL AND passport_photo != '';
+    `).catch(() => {});
+
+    await sequelize.query(`
+      UPDATE students 
+      SET passport_photo = profile_photo 
+      WHERE (passport_photo IS NULL OR passport_photo = '') 
+        AND profile_photo IS NOT NULL AND profile_photo != '';
+    `).catch(() => {});
+
+    // 2. Backfill photos from admission_requests to students
+    try {
+      const admissionRequests = await AdmissionRequest.findAll({
+        where: {
+          passport_photo: { [Op.ne]: null }
+        },
+        attributes: ['id', 'student_id_created', 'first_name', 'last_name', 'parent_phone', 'passport_photo', 'form_no']
+      });
+
+      for (const req of admissionRequests) {
+        if (!req.passport_photo) continue;
+        if (req.student_id_created) {
+          await Student.update(
+            { passport_photo: req.passport_photo, profile_photo: req.passport_photo },
+            { where: { id: req.student_id_created, profile_photo: null } }
+          ).catch(() => {});
+        }
+        if (req.form_no) {
+          await Student.update(
+            { passport_photo: req.passport_photo, profile_photo: req.passport_photo },
+            { where: { form_no: req.form_no, profile_photo: null } }
+          ).catch(() => {});
+        }
+      }
+    } catch (e) {}
+
+    // 3. Sync student photos to linked users
+    try {
+      const studentsWithPhoto = await Student.findAll({
+        where: {
+          profile_photo: { [Op.ne]: null }
+        },
+        attributes: ['id', 'profile_photo']
+      });
+
+      for (const s of studentsWithPhoto) {
+        if (s.profile_photo) {
+          await User.update(
+            { profile_photo: s.profile_photo },
+            { where: { linked_student_id: s.id } }
+          ).catch(() => {});
+        }
+      }
+    } catch (e) {}
+
+    console.log('[MIGRATOR] ✅ Student photographs synchronized across database.');
+  } catch (err) {
+    console.warn('[MIGRATOR] Student photo migration notice:', err.message);
+  }
+}
+
 module.exports = {
   migrateTeacherColumns,
   migrateUserColumns,
@@ -761,5 +849,6 @@ module.exports = {
   migrateStudentMarksheetColumns,
   migrateActiveSession,
   migrateAdmissionRequestColumns,
+  migrateStudentPhotos,
   migrateNotificationColumns,
 };

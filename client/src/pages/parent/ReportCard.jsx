@@ -104,7 +104,7 @@ export default function ReportCard() {
 
           {/* Student info */}
           <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 px-4 sm:px-6 py-4 border-b border-gray-100">
-            <Avatar name={`${activeStudent?.first_name || ''} ${activeStudent?.last_name || ''}`} size="lg" />
+            <Avatar name={`${activeStudent?.first_name || ''} ${activeStudent?.last_name || ''}`} size="lg" src={activeStudent?.profile_photo || activeStudent?.passport_photo || selected?.student?.profile_photo || selected?.student?.passport_photo} />
             <div className="flex-1 min-w-0">
               <h3 className="font-bold text-gray-800 text-base">
                 {activeStudent?.first_name} {activeStudent?.last_name}

@@ -212,9 +212,9 @@ export default function FCAdmissions() {
                       </td>
                       <td className="py-3 px-4 whitespace-nowrap">
                         <div className="flex items-center gap-2.5">
-                          {r.passport_photo ? (
+                          {(r.passport_photo || r.profile_photo) ? (
                             <img
-                              src={r.passport_photo}
+                              src={r.passport_photo || r.profile_photo}
                               alt={studentName}
                               className="w-8 h-8 rounded-full object-cover border border-slate-200 shadow-2xs"
                             />
@@ -310,9 +310,9 @@ export default function FCAdmissions() {
             {/* Top Identity Card */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-slate-50 border border-slate-200 rounded-2xl p-4">
               <div className="flex items-center gap-3.5">
-                {viewing.passport_photo ? (
+                {(viewing.passport_photo || viewing.profile_photo) ? (
                   <img
-                    src={viewing.passport_photo}
+                    src={viewing.passport_photo || viewing.profile_photo}
                     alt="Passport Photo"
                     className="w-16 h-20 rounded-xl object-cover border-2 border-blue-600 shadow-xs"
                   />

@@ -161,8 +161,9 @@ router.get('/student/:studentId', protect, async (req, res) => {
     res.json(results.map((r) => {
       const json = r.toJSON();
       json.attendance = attendanceSummary;
-      if (json.student && !json.student.profile_photo && studentUserPhoto) {
-        json.student.profile_photo = studentUserPhoto;
+      if (json.student) {
+        json.student.profile_photo = json.student.profile_photo || json.student.passport_photo || studentUserPhoto || null;
+        json.student.passport_photo = json.student.passport_photo || json.student.profile_photo || null;
       }
       return json;
     }));
@@ -198,7 +199,7 @@ router.get('/class', protect, authorize('admin', 'admin2', 'teacher'), async (re
         {
           model: Student,
           as: 'student',
-          attributes: ['id', 'student_id', 'first_name', 'last_name', 'roll_number', 'class', 'section', 'date_of_birth', 'parent_name', 'mother_name', 'category', 'aadhar_number', 'pen_number', 'family_id'],
+          attributes: ['id', 'student_id', 'first_name', 'last_name', 'roll_number', 'class', 'section', 'date_of_birth', 'parent_name', 'mother_name', 'category', 'aadhar_number', 'pen_number', 'family_id', 'profile_photo', 'passport_photo'],
         },
         { model: ResultSubject, as: 'subjects' },
         { model: User, as: 'enteredByUser', attributes: ['id', 'name', 'role'] },
@@ -206,7 +207,14 @@ router.get('/class', protect, authorize('admin', 'admin2', 'teacher'), async (re
       order: [['percentage', 'DESC']],
     });
     res.set('Cache-Control', 'no-store');
-    res.json(results.map(r => r.toJSON()));
+    res.json(results.map(r => {
+      const json = r.toJSON();
+      if (json.student) {
+        json.student.profile_photo = json.student.profile_photo || json.student.passport_photo || null;
+        json.student.passport_photo = json.student.passport_photo || json.student.profile_photo || null;
+      }
+      return json;
+    }));
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -251,7 +259,7 @@ router.get('/class-incharge', protect, hasPermission('INCHARGE_REVIEW'), async (
         {
           model: Student,
           as: 'student',
-          attributes: ['id', 'student_id', 'first_name', 'last_name', 'roll_number', 'class', 'section'],
+          attributes: ['id', 'student_id', 'first_name', 'last_name', 'roll_number', 'class', 'section', 'profile_photo', 'passport_photo'],
         },
         { model: ResultSubject, as: 'subjects' },
         { model: User, as: 'enteredByUser', attributes: ['id', 'name', 'role'] },
@@ -290,14 +298,21 @@ router.get('/pending-approval', protect, authorize('admin', 'admin2'), async (re
     const results = await Result.findAll({
       where,
       include: [
-        { model: Student, as: 'student', attributes: ['id', 'first_name', 'last_name', 'class', 'section'] },
+        { model: Student, as: 'student', attributes: ['id', 'first_name', 'last_name', 'class', 'section', 'profile_photo', 'passport_photo'] },
         { model: ResultSubject, as: 'subjects' },
         { model: User, as: 'enteredByUser', attributes: ['id', 'name'] },
       ],
       order: [['updated_at', 'DESC']],
     });
     res.set('Cache-Control', 'no-store');
-    res.json(results.map(r => r.toJSON()));
+    res.json(results.map(r => {
+      const json = r.toJSON();
+      if (json.student) {
+        json.student.profile_photo = json.student.profile_photo || json.student.passport_photo || null;
+        json.student.passport_photo = json.student.passport_photo || json.student.profile_photo || null;
+      }
+      return json;
+    }));
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

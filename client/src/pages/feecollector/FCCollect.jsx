@@ -254,9 +254,17 @@ export default function FCCollect() {
                 className="flex items-center justify-between p-3 bg-gray-50 hover:bg-blue-50 rounded-xl cursor-pointer transition-colors border border-transparent hover:border-blue-200"
               >
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-9 h-9 rounded-full bg-blue-100 text-blue-700 text-sm font-bold flex items-center justify-center flex-shrink-0">
-                    {s.first_name?.[0]}
-                  </div>
+                  {(s.profile_photo || s.passport_photo) ? (
+                    <img
+                      src={s.profile_photo || s.passport_photo}
+                      alt=""
+                      className="w-9 h-9 rounded-full object-cover border border-slate-200 shadow-2xs flex-shrink-0"
+                    />
+                  ) : (
+                    <div className="w-9 h-9 rounded-full bg-blue-100 text-blue-700 text-sm font-bold flex items-center justify-center flex-shrink-0">
+                      {s.first_name?.[0]}
+                    </div>
+                  )}
                   <div className="min-w-0">
                     <p className="font-medium text-gray-800 text-sm truncate">{s.first_name} {s.last_name}</p>
                     <p className="text-xs text-gray-400">{s.student_id} · {s.class} {s.section} · {s.parent_phone}</p>
@@ -279,9 +287,17 @@ export default function FCCollect() {
           <div className="space-y-4">
             {/* Student info */}
             <div className="flex flex-col sm:flex-row gap-4 p-4 bg-gray-50 rounded-xl">
-              <div className="w-14 h-14 rounded-full bg-blue-100 text-blue-700 text-xl font-bold flex items-center justify-center flex-shrink-0">
-                {selected.student.first_name?.[0]}
-              </div>
+              {(selected.student.profile_photo || selected.student.passport_photo) ? (
+                <img
+                  src={selected.student.profile_photo || selected.student.passport_photo}
+                  alt=""
+                  className="w-14 h-14 rounded-full object-cover border-2 border-blue-600 shadow-xs flex-shrink-0"
+                />
+              ) : (
+                <div className="w-14 h-14 rounded-full bg-blue-100 text-blue-700 text-xl font-bold flex items-center justify-center flex-shrink-0">
+                  {selected.student.first_name?.[0]}
+                </div>
+              )}
               <div className="flex-1 space-y-1">
                 <p className="font-bold text-gray-800 text-base">{selected.student.first_name} {selected.student.last_name}</p>
                 <div className="grid grid-cols-2 gap-1 text-xs text-gray-500">

@@ -155,9 +155,9 @@ export default function Students() {
                   <tr key={s.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-2.5">
-                        {s.profile_photo ? (
+                        {(s.profile_photo || s.passport_photo) ? (
                           <img
-                            src={s.profile_photo}
+                            src={s.profile_photo || s.passport_photo}
                             alt={`${s.first_name} ${s.last_name}`}
                             className="w-8 h-8 rounded-full object-cover border border-slate-200 shadow-2xs shrink-0"
                           />
@@ -250,9 +250,9 @@ export default function Students() {
         {viewing && (
           <div className="space-y-4 text-sm text-gray-700">
             <div className="flex items-center gap-4 border-b border-gray-100 pb-4">
-              {viewing.profile_photo ? (
+              {(viewing.profile_photo || viewing.passport_photo) ? (
                 <img
-                  src={viewing.profile_photo}
+                  src={viewing.profile_photo || viewing.passport_photo}
                   alt={`${viewing.first_name} ${viewing.last_name}`}
                   className="w-16 h-20 rounded-xl object-cover border-2 border-blue-600 shadow-xs shrink-0"
                 />
