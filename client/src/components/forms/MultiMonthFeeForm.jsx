@@ -7,15 +7,16 @@ export default function MultiMonthFeeForm({ student, year, onSubmit, loading }) 
   const [selectedMonths, setSelectedMonths] = useState([]);
   const [mode, setMode]                     = useState('cash');
   const [remarks, setRemarks]               = useState('');
-  const [feeAmount, setFeeAmount]           = useState(2500);
+  const [feeAmount, setFeeAmount]           = useState(0);
   const [studentFees, setStudentFees]       = useState([]);
   const [fetchingFees, setFetchingFees]     = useState(true);
 
   useEffect(() => {
-    // Fetch fee structure
-    API.get(`/fees/structure/${student.class}`)
-      .then(r => setFeeAmount(parseFloat(r.data?.monthly_fee || 2500)))
-      .catch(() => {});
+    // Fetch fee structure for student's class (synced with admin-configured class fee)
+    const qs = student?.session_id ? `?session_id=${student.session_id}` : '';
+    API.get(`/fees/structure/${encodeURIComponent(student.class || '')}${qs}`)
+      .then(r => setFeeAmount(parseFloat(r.data?.monthly_fee || 0)))
+      .catch(() => setFeeAmount(0));
 
     // Fetch existing fees to determine paid/unpaid status
     setFetchingFees(true);
@@ -27,7 +28,7 @@ export default function MultiMonthFeeForm({ student, year, onSubmit, loading }) 
       })
       .catch(() => toast.error('Failed to load student fee records.'))
       .finally(() => setFetchingFees(false));
-  }, [student.id, student.class, year]);
+  }, [student?.id, student?.class, student?.session_id, year]);
 
   const MONTHS_LIST = ['January','February','March','April','May','June',
                        'July','August','September','October','November','December'];

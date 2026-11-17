@@ -201,6 +201,45 @@ async function migrateFeeColumns() {
       `);
     }
 
+    if (sequelize.getDialect() === 'sqlite') {
+      const [tableSql] = await sequelize.query("SELECT sql FROM sqlite_master WHERE type='table' AND name='class_fee_structures';");
+      if (tableSql && tableSql[0] && tableSql[0].sql && tableSql[0].sql.includes('session_id` INTEGER NOT NULL UNIQUE')) {
+        console.log('[MIGRATOR] Fixing SQLite class_fee_structures composite unique index...');
+        await sequelize.query('PRAGMA foreign_keys = OFF;');
+        await sequelize.query(`
+          CREATE TABLE IF NOT EXISTS class_fee_structures_temp (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            class VARCHAR(20) NOT NULL,
+            session_id INTEGER NOT NULL,
+            monthly_fee DECIMAL(10,2) NOT NULL DEFAULT 0,
+            admission_fee DECIMAL(10,2) DEFAULT 0,
+            annual_fee DECIMAL(10,2) DEFAULT 0,
+            promotion_fee DECIMAL(10,2) DEFAULT 0,
+            exam_fee DECIMAL(10,2) DEFAULT 0,
+            monthly_due_date INTEGER DEFAULT 10,
+            annual_due_date DATE,
+            late_fee_per_day DECIMAL(10,2) DEFAULT 0,
+            is_published TINYINT(1) DEFAULT 0,
+            is_locked TINYINT(1) DEFAULT 0,
+            is_active TINYINT(1) DEFAULT 1,
+            updated_by INTEGER,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+          );
+        `);
+        await sequelize.query(`
+          INSERT OR IGNORE INTO class_fee_structures_temp 
+          SELECT id, class, session_id, monthly_fee, admission_fee, annual_fee, promotion_fee, exam_fee, monthly_due_date, annual_due_date, late_fee_per_day, is_published, is_locked, is_active, updated_by, created_at, updated_at 
+          FROM class_fee_structures;
+        `);
+        await sequelize.query('DROP TABLE class_fee_structures;');
+        await sequelize.query('ALTER TABLE class_fee_structures_temp RENAME TO class_fee_structures;');
+        await sequelize.query('CREATE UNIQUE INDEX IF NOT EXISTS class_fee_structures_class_session_id ON class_fee_structures (class, session_id);');
+        await sequelize.query('PRAGMA foreign_keys = ON;');
+        console.log('[MIGRATOR] ✅ Fixed SQLite class_fee_structures composite unique constraint.');
+      }
+    }
+
     console.log('[MIGRATOR] ✅ Fee columns migration completed successfully.');
   } catch (err) {
     console.error('[MIGRATOR] ❌ Fee columns migration failed:', err.message);

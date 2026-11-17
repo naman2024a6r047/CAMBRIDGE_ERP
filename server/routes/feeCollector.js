@@ -101,8 +101,8 @@ router.get('/students/:id/details', protect, authorize(...FC_ROLES), async (req,
       include: [{ model: User, as: 'collectedByUser', attributes: ['id','name'] }]
     });
 
-    // Fee structure for this class
-    const feeStructure = await getFeeStructureForClass(student.class);
+    // Fee structure for this class (with session & normalized class fallback)
+    const feeStructure = await getFeeStructureForClass(student.class, student.session_id);
 
     const totalDue       = fees.reduce((a, f) => a + parseFloat(f.total_amount || 0), 0);
     const totalCollected = fees.reduce((a, f) => a + parseFloat(f.paid_amount  || 0), 0);

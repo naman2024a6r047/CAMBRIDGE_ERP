@@ -709,16 +709,22 @@ router.post('/', protect, authorize('admin', 'admin2', 'fee_collector'), validat
       phone: student.parent_phone,
     }, { transaction: txn });
 
-    // Always generate admission fee for new students (even if pending)
-    const { getOrCreateFeeRecord, assignPublishedFeeStructure, MONTHS } = require('../services/feeService');
+    // Auto-assign fees according to the class fee structure selected by admin
+    const { getOrCreateFeeRecord, assignPublishedFeeStructure, getFeeStructureForClass, MONTHS } = require('../services/feeService');
     const now   = new Date();
     const month = MONTHS[now.getMonth()];
     const year  = now.getFullYear();
-    await getOrCreateFeeRecord(student, month, year, 'admission', txn);
+
+    const structure = await getFeeStructureForClass(student.class, student.session_id);
+    if (structure && Number(structure.admission_fee || 0) > 0) {
+      await getOrCreateFeeRecord(student, month, year, 'admission', txn);
+    }
 
     if (isApproved) {
       // Auto-generate current month fee record and assign published fee structure
-      await getOrCreateFeeRecord(student, month, year, 'monthly', txn);
+      if (structure && Number(structure.monthly_fee || 0) > 0) {
+        await getOrCreateFeeRecord(student, month, year, 'monthly', txn);
+      }
       await assignPublishedFeeStructure(student, txn);
     }
 

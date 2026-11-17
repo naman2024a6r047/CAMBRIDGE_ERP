@@ -22,7 +22,8 @@ export default function StudentForm({ onSubmit, defaultValues = {}, loading = fa
   }, [defaultValues?.id]);
 
   const selectedClass = watch('class');
-  const selectedFeeStruct = feeStructures.find(s => s.class === selectedClass);
+  const norm = (c) => (c || '').toString().trim().toLowerCase().replace(/^class\s+/i, '').replace(/(st|nd|rd|th)$/i, '');
+  const selectedFeeStruct = feeStructures.find(s => s.class === selectedClass || norm(s.class) === norm(selectedClass));
   const admissionFee = selectedFeeStruct?.admission_fee || 0;
 
   const f = 'w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all';

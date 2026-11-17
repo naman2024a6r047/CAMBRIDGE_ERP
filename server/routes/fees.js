@@ -10,14 +10,17 @@ const { feeCollectionLimiter } = require('../middleware/rateLimiters');
 const {
   round2,
   parseFeeBreakdown,
+  getClassVariants,
   getStudentsWithFeeStatus,
   getOrCreateFeeRecord,
   generateMonthlyFees,
   buildReceiptData,
   getFeeStructureForClass,
   getStudentFeeLedger,
+  syncClassFeesToStudents,
   MONTHS,
 } = require('../services/feeService');
+const { isClassMatch } = require('../utils/teacherAllowedClasses');
 
 // (C3 fix) — whitelisted fields for fee structure
 const FEE_STRUCTURE_FIELDS = ['monthly_fee', 'admission_fee', 'annual_fee', 'promotion_fee', 'exam_fee'];
@@ -49,6 +52,14 @@ router.get('/structure', protect, hasPermission('MANAGE_FEES'), async (req, res)
   } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
+// GET /api/fees/structure/:class — get structure for a class (with normalized lookup and session fallback)
+router.get('/structure/:class', protect, hasPermission('MANAGE_FEES', 'COLLECT_FEES'), async (req, res) => {
+  try {
+    const structure = await getFeeStructureForClass(req.params.class, req.query.session_id);
+    res.json(structure);
+  } catch (err) { res.status(500).json({ message: err.message }); }
+});
+
 // GET /api/fees/structure/:class/:session — get one class structure
 router.get('/structure/:class/:session', protect, hasPermission('MANAGE_FEES'), async (req, res) => {
   try {
@@ -57,7 +68,7 @@ router.get('/structure/:class/:session', protect, hasPermission('MANAGE_FEES'), 
   } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
-// POST /api/fees/structure — create or update class fee structure
+// POST /api/fees/structure — create or update class fee structure & auto-sync to students
 router.post('/structure', protect, isSuperAdmin, async (req, res) => {
   try {
     const { class: cls, session_id } = req.body;
@@ -80,19 +91,22 @@ router.post('/structure', protect, isSuperAdmin, async (req, res) => {
       is_active:     true,
     });
 
+    // Auto-sync fee amounts to all active students in this class
+    const syncResult = await syncClassFeesToStudents(cls, session_id);
+
     res.status(created ? 201 : 200).json({
-      message: `Fee structure for ${cls} ${created ? 'created' : 'updated'}.`,
+      message: `Fee structure for ${cls} ${created ? 'created' : 'updated'}. Synced ${syncResult.updatedFees} fee records across ${syncResult.updatedStudents} students.`,
       structure,
+      syncResult,
     });
   } catch (err) { res.status(400).json({ message: err.message }); }
 });
 
-// PUT /api/fees/structure/:id
+// PUT /api/fees/structure/:id — update class fee structure & auto-sync to students
 router.put('/structure/:id', protect, isSuperAdmin, async (req, res) => {
   try {
     const structure = await ClassFeeStructure.findByPk(req.params.id);
     if (!structure) return res.status(404).json({ message: 'Structure not found.' });
-    if (structure.is_locked) return res.status(400).json({ message: 'Cannot edit a locked structure.' });
 
     const safeFees = pick(req.body, FEE_STRUCTURE_FIELDS);
     const updateData = { updated_by: req.user.id };
@@ -104,8 +118,51 @@ router.put('/structure/:id', protect, isSuperAdmin, async (req, res) => {
     if (safeFees.annual_due_date !== undefined) updateData.annual_due_date = safeFees.annual_due_date;
 
     await structure.update(updateData);
-    res.json(structure);
+
+    // Auto-sync updated fees to all active students in this class
+    const syncResult = await syncClassFeesToStudents(structure.class, structure.session_id);
+
+    res.json({
+      message: `Fee structure for ${structure.class} updated. Synced ${syncResult.updatedFees} fee records across ${syncResult.updatedStudents} students.`,
+      structure,
+      syncResult,
+    });
   } catch (err) { res.status(400).json({ message: err.message }); }
+});
+
+// POST /api/fees/structure/sync/:id — explicitly sync a specific fee structure to enrolled students
+router.post('/structure/sync/:id', protect, isSuperAdmin, async (req, res) => {
+  try {
+    const structure = await ClassFeeStructure.findByPk(req.params.id);
+    if (!structure) return res.status(404).json({ message: 'Structure not found.' });
+
+    const syncResult = await syncClassFeesToStudents(structure.class, structure.session_id);
+    res.json({
+      message: `Synchronized fee structure for ${structure.class} to ${syncResult.updatedStudents} students.`,
+      syncResult,
+    });
+  } catch (err) { res.status(500).json({ message: err.message }); }
+});
+
+// POST /api/fees/sync-all — synchronize all active class fee structures to all students
+router.post('/sync-all', protect, isSuperAdmin, async (req, res) => {
+  try {
+    const structures = await ClassFeeStructure.findAll({ where: { is_active: true } });
+    let totalUpdatedFees = 0;
+    let totalUpdatedStudents = 0;
+
+    for (const s of structures) {
+      const res = await syncClassFeesToStudents(s.class, s.session_id);
+      totalUpdatedFees += res.updatedFees;
+      totalUpdatedStudents += res.updatedStudents;
+    }
+
+    res.json({
+      message: `Successfully synchronized fee structures for ${structures.length} classes across ${totalUpdatedStudents} students.`,
+      totalUpdatedFees,
+      totalUpdatedStudents,
+    });
+  } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
 // POST /api/fees/structure/:id/publish
@@ -119,9 +176,14 @@ router.post('/structure/:id/publish', protect, isSuperAdmin, async (req, res) =>
     // Lock it
     await structure.update({ is_published: true, is_locked: true, updated_by: req.user.id }, { transaction: txn });
 
-    // Fetch all active students for this class and session
+    // Fetch all active students for this class (normalized class variants)
+    const variants = getClassVariants(structure.class);
     const students = await Student.findAll({
-      where: { class: structure.class, session_id: structure.session_id, is_active: true, approval_status: 'approved' },
+      where: {
+        class: { [Op.in]: variants },
+        is_active: true,
+        approval_status: 'approved'
+      },
       transaction: txn
     });
 
@@ -145,6 +207,9 @@ router.post('/structure/:id/publish', protect, isSuperAdmin, async (req, res) =>
         }
       }
     }
+
+    // Auto-sync monthly and other fee amounts to enrolled students
+    await syncClassFeesToStudents(structure.class, structure.session_id, txn);
 
     // Dispatch Notification using valid Notification schema fields
     const notif = await Notification.create({

@@ -1,5 +1,6 @@
 const { Fee, Student, ClassFeeStructure, Session, User } = require('../models');
 const { Op } = require('sequelize');
+const { normalizeClass, isClassMatch } = require('../utils/teacherAllowedClasses');
 
 const MONTHS = [
   'January','February','March','April','May','June',
@@ -7,6 +8,26 @@ const MONTHS = [
 ];
 
 const round2 = (value) => Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
+
+const getClassVariants = (cls) => {
+  if (!cls) return [];
+  const trimmed = String(cls).trim();
+  const normalized = normalizeClass(trimmed);
+  const variants = new Set([
+    trimmed,
+    trimmed.toLowerCase(),
+    normalized,
+    `Class ${normalized}`,
+    `Class ${normalized}th`,
+    `Class ${trimmed}`,
+    `Grade ${normalized}`,
+    `${normalized}th`,
+    `${normalized}st`,
+    `${normalized}nd`,
+    `${normalized}rd`,
+  ]);
+  return Array.from(variants).filter(Boolean);
+};
 
 const parseFeeBreakdown = (val) => {
   if (!val) return {};
@@ -22,41 +43,81 @@ const parseFeeBreakdown = (val) => {
 };
 
 /**
- * Get fee structure for a class & session.
- * Falls back to class's active structure, then sensible defaults if unconfigured.
- * (Q2 fix) — logs a warning when fallback defaults are used.
+ * Get fee structure for a class & session with normalized class matching.
+ * Priority:
+ * 1. Exact class match or normalized match with specific session_id
+ * 2. Active academic session match with normalized class
+ * 3. Any active published structure for that class
+ * 4. Any active structure for that class
+ * 5. Returns 0s if unconfigured (never calculates fake arbitrary amounts)
  */
-const getFeeStructureForClass = async (className, sessionId) => {
-  const where = { class: className, is_active: true };
-  if (sessionId) where.session_id = sessionId;
-
-  let structure = await ClassFeeStructure.findOne({ where });
-  if (!structure && sessionId) {
-    structure = await ClassFeeStructure.findOne({
-      where: { class: className, is_active: true },
-      order: [['is_published', 'DESC'], ['id', 'DESC']],
-    });
-  }
-
-  if (!structure) {
-    console.warn(`[FEE WARNING] No fee structure configured for "${className}". Using hardcoded defaults. Please set up fee structure in admin panel.`);
+const getFeeStructureForClass = async (className, sessionId = null) => {
+  if (!className) {
     return {
-      monthly_fee:   2500,
-      admission_fee: 5000,
-      annual_fee:    1000,
-      promotion_fee: 500,
-      exam_fee:      300,
-      _is_default:   true,
+      class: className,
+      monthly_fee: 0,
+      admission_fee: 0,
+      annual_fee: 0,
+      promotion_fee: 0,
+      exam_fee: 0,
+      monthly_due_date: 10,
+      annual_due_date: null,
+      is_published: false,
+      _is_default: true,
     };
   }
 
-  return structure;
+  // Load all active fee structures
+  const allStructures = await ClassFeeStructure.findAll({
+    where: { is_active: true },
+    order: [['is_published', 'DESC'], ['id', 'DESC']],
+  });
+
+  let activeSessionId = sessionId;
+  if (!activeSessionId) {
+    const activeSession = await Session.findOne({ where: { is_active: true } });
+    if (activeSession) activeSessionId = activeSession.id;
+  }
+
+  // 1. Try to find match with exact session & matching class
+  let matched = null;
+  if (sessionId) {
+    matched = allStructures.find(s => isClassMatch(s.class, className) && String(s.session_id) === String(sessionId));
+  }
+
+  // 2. Try with active session
+  if (!matched && activeSessionId) {
+    matched = allStructures.find(s => isClassMatch(s.class, className) && String(s.session_id) === String(activeSessionId));
+  }
+
+  // 3. Try any matching class (published first)
+  if (!matched) {
+    matched = allStructures.find(s => isClassMatch(s.class, className) && s.is_published)
+      || allStructures.find(s => isClassMatch(s.class, className));
+  }
+
+  if (!matched) {
+    return {
+      class: className,
+      monthly_fee: 0,
+      admission_fee: 0,
+      annual_fee: 0,
+      promotion_fee: 0,
+      exam_fee: 0,
+      monthly_due_date: 10,
+      annual_due_date: null,
+      is_published: false,
+      _is_default: true,
+    };
+  }
+
+  return matched;
 };
 
 /**
  * Generate or get a fee record for a student+month+year+type.
  * If it doesn't exist, create it using the class fee structure.
- * This is the core "upsert" function used everywhere.
+ * Reconciles unpaid records to match current class fee structure if updated.
  */
 const getOrCreateFeeRecord = async (student, month, year, feeType = 'monthly', txn = null) => {
   const options = txn ? { transaction: txn } : {};
@@ -77,24 +138,7 @@ const getOrCreateFeeRecord = async (student, month, year, feeType = 'monthly', t
     whereClause.year = year;
   }
 
-  const existing = await Fee.findOne({
-    where: whereClause,
-    ...options
-  });
-
-  if (existing) return { record: existing, created: false };
-
-  // If asking for monthly, check if an admission fee exists for this month.
-  // If so, the monthly fee is bundled inside it.
-  if (feeType === 'monthly') {
-    const existingAdmission = await Fee.findOne({
-      where: { student_id: student.id, month, year, fee_type: 'admission' },
-      ...options
-    });
-    if (existingAdmission) return { record: existingAdmission, created: false };
-  }
-
-  // Get the fee amount from class structure
+  // Get the fee amount from class structure (normalized class lookup)
   const structure = await getFeeStructureForClass(student.class, student.session_id);
 
   const amountMap = {
@@ -109,6 +153,21 @@ const getOrCreateFeeRecord = async (student, month, year, feeType = 'monthly', t
   const totalAmount = round2(
     amountMap[feeType] !== undefined ? amountMap[feeType] : parseFloat(structure.monthly_fee || 0)
   );
+
+  const existing = await Fee.findOne({
+    where: whereClause,
+    ...options
+  });
+
+  if (existing) {
+    // Reconcile unpaid fee record if class fee structure has changed
+    if (existing.status === 'unpaid' && Math.abs(parseFloat(existing.total_amount || 0) - totalAmount) > 0.01) {
+      existing.total_amount = totalAmount;
+      existing.fee_breakdown = { ...parseFeeBreakdown(existing.fee_breakdown), [feeType]: totalAmount };
+      await existing.save(options);
+    }
+    return { record: existing, created: false };
+  }
 
   // Calculate Due Date
   let dueDate = null;
@@ -142,44 +201,46 @@ const getOrCreateFeeRecord = async (student, month, year, feeType = 'monthly', t
 };
 
 /**
- * Assign a published fee structure to a student dynamically (e.g., late admission, promotion).
- * Evaluates rules for new vs existing students.
+ * Assign a fee structure to a student dynamically (e.g., late admission, promotion).
+ * Evaluates rules for new vs existing students. Only creates fees that have an amount > 0.
  */
 const assignPublishedFeeStructure = async (student, txn = null, isPromotion = false) => {
   const options = txn ? { transaction: txn } : {};
-  if (!student.session_id || !student.class || student.approval_status !== 'approved') return false;
+  if (!student.class || student.approval_status !== 'approved') return false;
 
-  const structure = await ClassFeeStructure.findOne({
-    where: { class: student.class, session_id: student.session_id, is_active: true, is_published: true },
-    ...options
-  });
-
-  if (!structure) return false; // No published structure to assign
+  const structure = await getFeeStructureForClass(student.class, student.session_id);
+  if (!structure || structure._is_default) return false;
 
   const currentYear = new Date().getFullYear();
   const currentMonth = MONTHS[new Date().getMonth()];
 
   // 1. Check if New Admission
-  let isNewAdmission = false;
-  const hasPaidAdmission = await Fee.findOne({
-    where: { student_id: student.id, fee_type: 'admission' },
-    ...options
-  });
-
-  if (!hasPaidAdmission) {
-    isNewAdmission = true;
-    if (Number(structure.admission_fee || 0) > 0) {
+  const admissionAmt = Number(structure.admission_fee || 0);
+  if (admissionAmt > 0) {
+    const hasPaidAdmission = await Fee.findOne({
+      where: { student_id: student.id, fee_type: 'admission' },
+      ...options
+    });
+    if (!hasPaidAdmission) {
       await getOrCreateFeeRecord(student, currentMonth, currentYear, 'admission', txn);
     }
   }
 
-  // 2. Session / Annual Fee (Skip for new admissions)
-  if (Number(structure.annual_fee || 0) > 0 && !isNewAdmission) {
-    await getOrCreateFeeRecord(student, currentMonth, currentYear, 'annual', txn);
+  // 2. Session / Annual Fee
+  const annualAmt = Number(structure.annual_fee || 0);
+  if (annualAmt > 0) {
+    const hasAnnual = await Fee.findOne({
+      where: { student_id: student.id, fee_type: 'annual', session_id: student.session_id },
+      ...options
+    });
+    if (!hasAnnual) {
+      await getOrCreateFeeRecord(student, currentMonth, currentYear, 'annual', txn);
+    }
   }
 
   // 3. Promotion Fee (If called during promotion)
-  if (isPromotion && Number(structure.promotion_fee || 0) > 0) {
+  const promotionAmt = Number(structure.promotion_fee || 0);
+  if (isPromotion && promotionAmt > 0) {
     await getOrCreateFeeRecord(student, currentMonth, currentYear, 'promotion', txn);
   }
   
@@ -189,11 +250,14 @@ const assignPublishedFeeStructure = async (student, txn = null, isPromotion = fa
 /**
  * Get all active students WITH their fee status for a given month/year.
  * Students without fee records show as "not_generated".
- * This ensures newly created students always appear.
+ * Reconciles unpaid fees dynamically with current class fee structures.
  */
 const getStudentsWithFeeStatus = async (month, year, filters = {}) => {
   const studentWhere = { is_active: true, approval_status: 'approved' };
-  if (filters.class)   studentWhere.class   = filters.class;
+  if (filters.class) {
+    const variants = getClassVariants(filters.class);
+    studentWhere.class = { [Op.in]: variants };
+  }
   if (filters.section) studentWhere.section = filters.section;
 
   const students = await Student.findAll({
@@ -206,7 +270,7 @@ const getStudentsWithFeeStatus = async (month, year, filters = {}) => {
 
   // Fetch existing fee records for these students this month and active ClassFeeStructures
   const studentIds = students.map(s => s.id);
-  const [feeRecords, feeStructures] = await Promise.all([
+  const [feeRecords, feeStructures, activeSession] = await Promise.all([
     Fee.findAll({
       where: {
         student_id: { [Op.in]: studentIds },
@@ -219,19 +283,28 @@ const getStudentsWithFeeStatus = async (month, year, filters = {}) => {
         attributes: ['id', 'name']
       }]
     }),
-    ClassFeeStructure.findAll({ where: { is_active: true } })
+    ClassFeeStructure.findAll({
+      where: { is_active: true },
+      order: [['is_published', 'DESC'], ['id', 'DESC']]
+    }),
+    Session.findOne({ where: { is_active: true } })
   ]);
 
-  const structureMap = {};
-  const structureMapBySession = {};
-  feeStructures.forEach(fs => {
-    if (fs.session_id) {
-      structureMapBySession[`${fs.class}::${fs.session_id}`] = fs;
+  const findStructureForStudent = (sClass, sSessionId) => {
+    if (!sClass) return null;
+    let st = null;
+    if (sSessionId) {
+      st = feeStructures.find(fs => isClassMatch(fs.class, sClass) && String(fs.session_id) === String(sSessionId));
     }
-    if (!structureMap[fs.class] || fs.is_published) {
-      structureMap[fs.class] = fs;
+    if (!st && activeSession?.id) {
+      st = feeStructures.find(fs => isClassMatch(fs.class, sClass) && String(fs.session_id) === String(activeSession.id));
     }
-  });
+    if (!st) {
+      st = feeStructures.find(fs => isClassMatch(fs.class, sClass) && fs.is_published)
+        || feeStructures.find(fs => isClassMatch(fs.class, sClass));
+    }
+    return st;
+  };
 
   // Map fees by student_id + fee_type
   const feeMap = {};
@@ -242,35 +315,36 @@ const getStudentsWithFeeStatus = async (month, year, filters = {}) => {
   });
 
   // Merge students with their fee data
-  return students.map(s => {
+  return Promise.all(students.map(async (s) => {
     const sJson  = s.toJSON();
     const fees   = feeMap[s.id] || [];
-    let monthly = fees.find(f => f.fee_type === 'monthly');
-    const admission = fees.find(f => f.fee_type === 'admission');
+    let monthly  = fees.find(f => f.fee_type === 'monthly');
 
-    // If an admission fee exists but no separate monthly fee, the admission fee serves as both
-    if (!monthly && admission) {
-      monthly = admission;
-    }
+    const clsStructure = findStructureForStudent(s.class, s.session_id);
+    const configuredMonthlyFee = clsStructure ? round2(clsStructure.monthly_fee ?? 0) : 0;
 
-    const hasRealMonthly = !!monthly;
-    if (!monthly) {
-      const clsStructure = (s.session_id ? structureMapBySession[`${s.class}::${s.session_id}`] : null)
-        || structureMap[s.class];
-      const monthlyFee = clsStructure ? round2(clsStructure.monthly_fee ?? 0) : 2500;
+    if (monthly) {
+      // Reconcile unpaid record if monthly fee was updated by admin
+      if (monthly.status === 'unpaid' && Math.abs(parseFloat(monthly.total_amount || 0) - configuredMonthlyFee) > 0.01) {
+        monthly.total_amount = configuredMonthlyFee;
+        monthly.fee_breakdown = { ...parseFeeBreakdown(monthly.fee_breakdown), monthly: configuredMonthlyFee };
+        await monthly.save().catch(() => {});
+      }
+    } else {
       monthly = {
         id: null,
         student_id: s.id,
         month,
         year: parseInt(year),
         fee_type: 'monthly',
-        total_amount: monthlyFee,
+        total_amount: configuredMonthlyFee,
         paid_amount: 0.00,
         status: 'not_generated',
-        fee_breakdown: { monthly: monthlyFee }
+        fee_breakdown: { monthly: configuredMonthlyFee }
       };
     }
 
+    const hasRealMonthly = Boolean(monthly.id);
     const billedTotal = round2(
       fees
         .filter(f => f.status !== 'waived')
@@ -289,8 +363,119 @@ const getStudentsWithFeeStatus = async (month, year, filters = {}) => {
       total_due:      billedTotal,
       total_paid:     paidTotal,
       has_fee_record: fees.length > 0,
+      configured_monthly_fee: configuredMonthlyFee,
     };
+  }));
+};
+
+/**
+ * Synchronize fee structure amounts to all enrolled students for a specific class.
+ * Updates all unpaid fees and recalculates partial fees dynamically.
+ */
+const syncClassFeesToStudents = async (className, sessionId = null, txn = null) => {
+  const options = txn ? { transaction: txn } : {};
+  const structure = await getFeeStructureForClass(className, sessionId);
+  if (!structure) return { updatedStudents: 0, updatedFees: 0 };
+
+  const variants = getClassVariants(className);
+  const students = await Student.findAll({
+    where: {
+      class: { [Op.in]: variants },
+      is_active: true,
+      approval_status: 'approved',
+    },
+    attributes: ['id', 'class', 'section', 'session_id'],
+    ...options
   });
+
+  if (!students.length) return { updatedStudents: 0, updatedFees: 0 };
+
+  const studentIds = students.map(s => s.id);
+  const monthlyAmt = round2(structure.monthly_fee ?? 0);
+  const admissionAmt = round2(structure.admission_fee ?? 0);
+  const annualAmt = round2(structure.annual_fee ?? 0);
+  const examAmt = round2(structure.exam_fee ?? 0);
+  const promotionAmt = round2(structure.promotion_fee ?? 0);
+
+  let updatedFeesCount = 0;
+
+  // 1. Sync unpaid monthly fees to exact monthly_fee
+  const [unpaidMonthlyCount] = await Fee.update(
+    {
+      total_amount: monthlyAmt,
+      fee_breakdown: { monthly: monthlyAmt },
+    },
+    {
+      where: {
+        student_id: { [Op.in]: studentIds },
+        fee_type: 'monthly',
+        status: 'unpaid',
+      },
+      ...options
+    }
+  );
+  updatedFeesCount += unpaidMonthlyCount;
+
+  // 2. Sync partial monthly fees: update total_amount and adjust status
+  const partialMonthlyFees = await Fee.findAll({
+    where: {
+      student_id: { [Op.in]: studentIds },
+      fee_type: 'monthly',
+      status: 'partial',
+    },
+    ...options
+  });
+  for (const fee of partialMonthlyFees) {
+    const paidAmt = round2(fee.paid_amount || 0);
+    const newStatus = paidAmt >= monthlyAmt ? 'paid' : paidAmt > 0 ? 'partial' : 'unpaid';
+    await fee.update({
+      total_amount: monthlyAmt,
+      status: newStatus,
+      fee_breakdown: { ...parseFeeBreakdown(fee.fee_breakdown), monthly: monthlyAmt },
+    }, options);
+    updatedFeesCount++;
+  }
+
+  // 3. Sync unpaid admission fees
+  if (admissionAmt > 0) {
+    const [admCount] = await Fee.update(
+      { total_amount: admissionAmt, fee_breakdown: { admission: admissionAmt } },
+      { where: { student_id: { [Op.in]: studentIds }, fee_type: 'admission', status: 'unpaid' }, ...options }
+    );
+    updatedFeesCount += admCount;
+  }
+
+  // 4. Sync unpaid annual fees
+  if (annualAmt > 0) {
+    const [annCount] = await Fee.update(
+      { total_amount: annualAmt, fee_breakdown: { annual: annualAmt } },
+      { where: { student_id: { [Op.in]: studentIds }, fee_type: 'annual', status: 'unpaid' }, ...options }
+    );
+    updatedFeesCount += annCount;
+  }
+
+  // 5. Sync unpaid exam fees
+  if (examAmt > 0) {
+    const [examCount] = await Fee.update(
+      { total_amount: examAmt, fee_breakdown: { exam: examAmt } },
+      { where: { student_id: { [Op.in]: studentIds }, fee_type: 'exam', status: 'unpaid' }, ...options }
+    );
+    updatedFeesCount += examCount;
+  }
+
+  // 6. Sync unpaid promotion fees
+  if (promotionAmt > 0) {
+    const [promCount] = await Fee.update(
+      { total_amount: promotionAmt, fee_breakdown: { promotion: promotionAmt } },
+      { where: { student_id: { [Op.in]: studentIds }, fee_type: 'promotion', status: 'unpaid' }, ...options }
+    );
+    updatedFeesCount += promCount;
+  }
+
+  return {
+    updatedStudents: students.length,
+    updatedFees: updatedFeesCount,
+  };
 };
 
 /**
@@ -679,22 +864,8 @@ const getStudentFeeLedger = async (studentId, { sessionId } = {}) => {
     ? allEnriched
     : allEnriched.filter((f) => f.resolved_session_id === String(selectedSessionId));
 
-  // Resolve published/active structure for selected session & student's class
-  let classStructure = null;
-  if (student.class) {
-    if (selectedSessionObj?.id) {
-      classStructure = await ClassFeeStructure.findOne({
-        where: { class: student.class, session_id: selectedSessionObj.id, is_active: true },
-        order: [['is_published', 'DESC'], ['id', 'DESC']],
-      });
-    }
-    if (!classStructure) {
-      classStructure = await ClassFeeStructure.findOne({
-        where: { class: student.class, is_active: true },
-        order: [['is_published', 'DESC'], ['id', 'DESC']],
-      });
-    }
-  }
+  // Resolve published/active structure for selected session & student's class (with normalized matching)
+  const classStructure = await getFeeStructureForClass(student.class, selectedSessionObj?.id);
 
   const annualFees = scopedFees.filter((f) => f.fee_type === 'annual' || f.fee_type === 'session_start');
   const monthlyReal = scopedFees.filter((f) => f.fee_type === 'monthly');
@@ -824,6 +995,7 @@ const getStudentFeeLedger = async (studentId, { sessionId } = {}) => {
 module.exports = {
   round2,
   parseFeeBreakdown,
+  getClassVariants,
   getFeeStructureForClass,
   getOrCreateFeeRecord,
   getStudentsWithFeeStatus,
@@ -834,5 +1006,6 @@ module.exports = {
   assignPublishedFeeStructure,
   getAcademicMonthsForSession,
   getStudentFeeLedger,
+  syncClassFeesToStudents,
   MONTHS,
 };
