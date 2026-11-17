@@ -113,6 +113,48 @@ router.put('/', protect, authorize('admin'), async (req, res) => {
   }
 });
 
+// PUT /api/settings/change-password - Change admin password (requires old password match)
+router.put('/change-password', protect, authorize('admin', 'admin2', 'superadmin', 'super_admin'), async (req, res) => {
+  try {
+    const { currentPassword, oldPassword, newPassword, confirmPassword } = req.body;
+    const oldPass = (currentPassword || oldPassword || '').trim();
+    const newPass = (newPassword || '').trim();
+    const confPass = (confirmPassword || '').trim();
+
+    if (!oldPass) {
+      return res.status(400).json({ message: 'Current (old) password is required.' });
+    }
+    if (!newPass || newPass.length < 6) {
+      return res.status(400).json({ message: 'New password must be at least 6 characters long.' });
+    }
+    if (confPass && newPass !== confPass) {
+      return res.status(400).json({ message: 'New password and confirm password do not match.' });
+    }
+    if (oldPass === newPass) {
+      return res.status(400).json({ message: 'New password must be different from current password.' });
+    }
+
+    const user = await User.findByPk(req.user.id);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found.' });
+    }
+
+    const isMatch = await user.comparePassword(oldPass);
+    if (!isMatch) {
+      return res.status(400).json({ message: 'Old password does not match. Please enter your correct current password.' });
+    }
+
+    user.password = newPass;
+    user.password_changed_at = new Date();
+    await user.save();
+
+    res.json({ success: true, message: 'Admin password changed successfully!' });
+  } catch (err) {
+    console.error('[PUT /settings/change-password]', err);
+    res.status(500).json({ message: err.message || 'Failed to update password.' });
+  }
+});
+
 // Configure multer for logo uploads (memory storage for base64)
 const storage = multer.memoryStorage();
 

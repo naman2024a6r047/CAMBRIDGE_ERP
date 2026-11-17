@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import API from '../../utils/api';
 import toast from 'react-hot-toast';
+import { useAuth } from '../../context/AuthContext';
 
 export default function Settings() {
+  const { user } = useAuth();
   const [settings, setSettings] = useState({
     school_name: '',
     school_subtitle: '',
@@ -22,6 +24,17 @@ export default function Settings() {
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+
+  // Admin Password Change State
+  const [passwordForm, setPasswordForm] = useState({
+    oldPassword: '',
+    newPassword: '',
+    confirmPassword: '',
+  });
+  const [showOldPassword, setShowOldPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [updatingPassword, setUpdatingPassword] = useState(false);
 
   useEffect(() => {
     API.get('/settings')
@@ -51,15 +64,67 @@ export default function Settings() {
     }
   };
 
+  const handlePasswordFormChange = (e) => {
+    const { name, value } = e.target;
+    setPasswordForm(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handlePasswordChange = async (e) => {
+    e.preventDefault();
+
+    const oldPass = passwordForm.oldPassword.trim();
+    const newPass = passwordForm.newPassword.trim();
+    const confPass = passwordForm.confirmPassword.trim();
+
+    if (!oldPass) {
+      return toast.error('Please enter your current (old) password.');
+    }
+    if (!newPass) {
+      return toast.error('Please enter a new password.');
+    }
+    if (newPass.length < 6) {
+      return toast.error('New password must be at least 6 characters long.');
+    }
+    if (newPass !== confPass) {
+      return toast.error('New password and Confirm Password do not match.');
+    }
+    if (oldPass === newPass) {
+      return toast.error('New password must be different from your old password.');
+    }
+
+    setUpdatingPassword(true);
+    try {
+      const res = await API.put('/settings/change-password', {
+        currentPassword: oldPass,
+        oldPassword: oldPass,
+        newPassword: newPass,
+        confirmPassword: confPass,
+      });
+
+      toast.success(res.data?.message || 'Admin password changed successfully!');
+      setPasswordForm({
+        oldPassword: '',
+        newPassword: '',
+        confirmPassword: '',
+      });
+    } catch (err) {
+      const errorMsg = err.response?.data?.message || 'Failed to update password. Please check your old password.';
+      toast.error(errorMsg);
+    } finally {
+      setUpdatingPassword(false);
+    }
+  };
+
   if (loading) return <div className="p-8 text-center text-gray-500">Loading settings...</div>;
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
       <div>
         <h2 className="text-2xl font-bold text-gray-800">School Settings</h2>
-        <p className="text-sm text-gray-500 mt-1">Manage school profile, receipts, and centralized platform connection</p>
+        <p className="text-sm text-gray-500 mt-1">Manage school profile, receipts, branding, and administrator security</p>
       </div>
 
+      {/* ── 1. School Profile & Report Card Settings ── */}
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
         <form onSubmit={handleSubmit} className="p-6 space-y-5">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
@@ -149,7 +214,7 @@ export default function Settings() {
                         const canvas = document.createElement('canvas');
                         let width = img.width;
                         let height = img.height;
-                        const MAX_SIZE = 200; // Resize to max 200px to ensure tiny base64 string
+                        const MAX_SIZE = 200;
                         
                         if (width > height) {
                           if (width > MAX_SIZE) {
@@ -192,6 +257,7 @@ export default function Settings() {
                 placeholder="This is a computer-generated receipt."
               />
             </div>
+
             {/* Official Report Card & Certificate Settings */}
             <div className="space-y-4 sm:col-span-2 pt-4 border-t border-gray-200">
               <div>
@@ -298,9 +364,129 @@ export default function Settings() {
             <button
               type="submit"
               disabled={saving}
-              className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-6 rounded-lg transition-colors disabled:opacity-50 shadow-sm"
+              className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-6 rounded-lg transition-colors disabled:opacity-50 shadow-sm cursor-pointer"
             >
               {saving ? 'Saving...' : 'Save Settings'}
+            </button>
+          </div>
+        </form>
+      </div>
+
+      {/* ── 2. Admin Security & Password Change ── */}
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+        <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold text-lg border border-amber-200">
+              🔒
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-gray-800">Change Admin Password</h3>
+              <p className="text-xs text-gray-500">
+                To update your password, your current (old) password is required first to verify your identity.
+              </p>
+            </div>
+          </div>
+
+          {user?.email && (
+            <span className="hidden sm:inline-block text-xs font-semibold px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
+              {user.email}
+            </span>
+          )}
+        </div>
+
+        <form onSubmit={handlePasswordChange} className="p-6 space-y-4">
+          <div className="bg-blue-50/60 border border-blue-200 rounded-xl p-3 text-xs text-blue-900 flex items-start gap-2">
+            <span className="text-blue-600 font-bold">ℹ️</span>
+            <span>
+              Your new password will only be saved if the <strong>old password matches</strong> your current admin account password.
+            </span>
+          </div>
+
+          {/* Old / Current Password */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-700 mb-1">
+              Current (Old) Password *
+            </label>
+            <div className="relative">
+              <input
+                type={showOldPassword ? 'text' : 'password'}
+                name="oldPassword"
+                value={passwordForm.oldPassword}
+                onChange={handlePasswordFormChange}
+                placeholder="Enter current password"
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500 pr-10"
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setShowOldPassword(!showOldPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs font-medium cursor-pointer"
+              >
+                {showOldPassword ? 'Hide' : 'Show'}
+              </button>
+            </div>
+            <p className="text-[11px] text-gray-400 mt-1">Required to verify your authorization.</p>
+          </div>
+
+          {/* New Password & Confirm Password */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 mb-1">
+                New Password *
+              </label>
+              <div className="relative">
+                <input
+                  type={showNewPassword ? 'text' : 'password'}
+                  name="newPassword"
+                  value={passwordForm.newPassword}
+                  onChange={handlePasswordFormChange}
+                  placeholder="Min. 6 characters"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500 pr-10"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowNewPassword(!showNewPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs font-medium cursor-pointer"
+                >
+                  {showNewPassword ? 'Hide' : 'Show'}
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 mb-1">
+                Confirm New Password *
+              </label>
+              <div className="relative">
+                <input
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  name="confirmPassword"
+                  value={passwordForm.confirmPassword}
+                  onChange={handlePasswordFormChange}
+                  placeholder="Re-enter new password"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500 pr-10"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs font-medium cursor-pointer"
+                >
+                  {showConfirmPassword ? 'Hide' : 'Show'}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="pt-3 border-t border-gray-100 flex justify-end">
+            <button
+              type="submit"
+              disabled={updatingPassword}
+              className="bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white font-bold py-2.5 px-6 rounded-lg text-xs transition-colors shadow-sm flex items-center gap-1.5 cursor-pointer"
+            >
+              <span>🔒</span>
+              <span>{updatingPassword ? 'Verifying & Saving...' : 'Change Password'}</span>
             </button>
           </div>
         </form>

@@ -469,11 +469,23 @@ async function migrateStudentMarksheetColumns() {
     const columnsToAdd = [
       { name: 'mother_name', type: DataTypes.STRING(100) },
       { name: 'category', type: DataTypes.STRING(50) },
-      { name: 'aadhar_number', type: DataTypes.STRING(20) },
+      { name: 'aadhar_number', type: DataTypes.STRING(30) },
       { name: 'pen_number', type: DataTypes.STRING(30) },
       { name: 'family_id', type: DataTypes.STRING(30) },
       { name: 'profile_photo', type: DataTypes.TEXT },
       { name: 'admission_date', type: DataTypes.DATEONLY },
+      { name: 'father_occupation', type: DataTypes.STRING(100) },
+      { name: 'mother_occupation', type: DataTypes.STRING(100) },
+      { name: 'father_phone', type: DataTypes.STRING(20) },
+      { name: 'father_whatsapp', type: DataTypes.STRING(20) },
+      { name: 'mother_phone', type: DataTypes.STRING(20) },
+      { name: 'mother_whatsapp', type: DataTypes.STRING(20) },
+      { name: 'post_office_tehsil', type: DataTypes.STRING(120) },
+      { name: 'district', type: DataTypes.STRING(80) },
+      { name: 'pin_code', type: DataTypes.STRING(15) },
+      { name: 'previous_school', type: DataTypes.STRING(150) },
+      { name: 'enquiry_mode', type: DataTypes.STRING(50) },
+      { name: 'form_no', type: DataTypes.STRING(40) },
     ];
 
     for (const col of columnsToAdd) {

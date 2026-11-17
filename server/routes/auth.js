@@ -15,8 +15,8 @@ const { protect, authorize, isSuperAdmin } = require('../middleware/auth');
 const { validateLogin, validateRegister, validateChangePassword } = require('../middleware/validator');
 const { passwordChangeLimiter } = require('../middleware/rateLimiters');
 
-// (M7 fix) — all roles including student and parent can change their own password
-const PASSWORD_CHANGE_ROLES = ['admin', 'admin2', 'teacher', 'fee_collector', 'student', 'parent'];
+// (M7 fix) — all roles including admin, student, and parent can change their own password
+const PASSWORD_CHANGE_ROLES = ['admin', 'admin2', 'teacher', 'fee_collector', 'student', 'parent', 'superadmin', 'super_admin'];
 
 // Detect if the deployment uses HTTPS (from CLIENT_URL or NODE_ENV)
 const isSecure = process.env.NODE_ENV === 'production'
@@ -210,15 +210,16 @@ router.post('/register', protect, isSuperAdmin, registerLimiter, validateRegiste
 // PUT /api/auth/change-password — (M7 fix) all authenticated users can change password
 router.put('/change-password', passwordChangeLimiter, protect, authorize(...PASSWORD_CHANGE_ROLES), validateChangePassword, async (req, res) => {
   try {
-    const { currentPassword, newPassword } = req.body;
+    const currentPassword = req.body.currentPassword || req.body.oldPassword;
+    const newPassword = req.body.newPassword;
     if (!currentPassword || !newPassword || newPassword.length < 6) {
-      return res.status(400).json({ message: 'Current password and a 6+ character new password are required.' });
+      return res.status(400).json({ message: 'Current (old) password and a 6+ character new password are required.' });
     }
 
     const user = await User.findByPk(req.user.id);
 
     if (!(await user.comparePassword(currentPassword))) {
-      return res.status(400).json({ message: 'Current password is incorrect.' });
+      return res.status(400).json({ message: 'Old password does not match. Please enter your correct current password.' });
     }
 
     user.password = newPassword;

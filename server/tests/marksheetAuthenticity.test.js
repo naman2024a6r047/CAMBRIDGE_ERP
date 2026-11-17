@@ -1,6 +1,6 @@
 const assert = require('assert');
 const { Student, Result, ResultSubject, Attendance, Session, sequelize } = require('../models');
-const { migrateStudentMarksheetColumns, migrateSessionAttendanceAndPromotionColumns } = require('../utils/dbMigrator');
+const { migrateStudentMarksheetColumns, migrateSessionAttendanceAndPromotionColumns, migrateAdmissionRequestColumns } = require('../utils/dbMigrator');
 
 async function runMarksheetAuthenticityTests() {
   console.log('\n================================================================');
@@ -12,6 +12,7 @@ async function runMarksheetAuthenticityTests() {
     console.log('  [TEST] 1. Verify student marksheet columns migration ...');
     await migrateSessionAttendanceAndPromotionColumns();
     await migrateStudentMarksheetColumns();
+    await migrateAdmissionRequestColumns();
     const qi = sequelize.getQueryInterface();
     const cols = await qi.describeTable('students');
     assert(cols.mother_name, 'mother_name column must exist in students');
