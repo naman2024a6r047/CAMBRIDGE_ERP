@@ -350,14 +350,4 @@ router.get('/status/:form_no', async (req, res) => {
   }
 });
 
-    if (!admission) {
-      return res.status(404).json({ message: 'Admission application not found.' });
-    }
-
-    res.json(admission);
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-});
-
 module.exports = router;
