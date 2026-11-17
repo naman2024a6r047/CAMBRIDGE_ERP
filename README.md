@@ -129,9 +129,12 @@ The platform provides role-based access control (RBAC) with granular data isolat
     - **Personal & Social Qualities (Co-Scholastic)**: Computer & G.K., Regularity, Yoga Activities, Behaviour & Compassion, Respectful & Courteous, Discipline, and Arts & Craft with grades ($A, B, C$).
   - **Summary & Signatures**: Result status (Passed/Promoted), Percentage, Division, Class Rank, Promoted Class, School Reopen date, Class Teacher signature space, and Principal signature space.
 - **Photograph Persistence & Dynamic Image Embedding**:
-  - Student profile and passport photographs uploaded during admission or profile management are stored as high-capacity `LONGTEXT` base64 strings in the database.
-  - Automatically synchronizes photos between `students`, `admission_requests`, and `users` tables.
-  - Employs dynamic format sniffing (`PNG`, `JPEG`, `WEBP`) in jsPDF to ensure clean rendering on generated marksheets, single-page dossiers, and student cards across all browsers without image corruption.
+  - **Client-Side Canvas Compression**: Online admission photos are compressed on upload into standardized 360x460 passport JPEG format (~25–35 KB) to eliminate multi-megabyte payloads that cause MySQL 64KB `TEXT` column truncation.
+  - **Universal URL & Base64 Resolution (`resolvePhotoUrl`)**: Supports Data URIs (`data:image/...`), raw un-prefixed base64 (`/9j/`, `iVBORw0KGgo`), relative server endpoints (`/uploads/...`), and full HTTP/HTTPS URLs across the application.
+  - **Resilient Fallback Component (`<Avatar />`)**: Implements proactive image error catching (`onError`) to smoothly fall back to high-contrast initials whenever an image payload is broken or unavailable.
+  - **Universal ERP-Wide Display**: Photographs seamlessly render in Admin Student Management tables & detail modals, Fee Collector Admission tables & inspection modals, Student Academic Dashboard welcome hero banner, Top Navigation Bar, and Sidebar profiles.
+  - **Bidirectional Self-Healing & Database Sync**: Startup migration and API route fallbacks (`GET /api/students`, `GET /api/students/:id`, `GET /api/students/:id/performance`) link photos across `students`, `admission_requests`, and `users` tables, ensuring legacy and newly admitted records maintain synchronized photographs.
+  - **High-Resolution Document Embedding**: Employs dynamic format sniffing (`PNG`, `JPEG`, `WEBP`) with HTML5 canvas conversion in jsPDF to embed crisp student photographs in official Marksheet Cum Certificates, Comprehensive Performance Dossiers, and Admission Application Forms.
 
 ---
 

@@ -212,15 +212,12 @@ export default function FCAdmissions() {
                       </td>
                       <td className="py-3 px-4 whitespace-nowrap">
                         <div className="flex items-center gap-2.5">
-                          {(r.passport_photo || r.profile_photo) ? (
-                            <img
-                              src={r.passport_photo || r.profile_photo}
-                              alt={studentName}
-                              className="w-8 h-8 rounded-full object-cover border border-slate-200 shadow-2xs"
-                            />
-                          ) : (
-                            <Avatar name={studentName} size="sm" />
-                          )}
+                          <Avatar
+                            name={studentName}
+                            size="sm"
+                            src={r.passport_photo || r.profile_photo}
+                            className="border border-slate-200 shadow-2xs"
+                          />
                           <div>
                             <p className="font-bold text-slate-800 text-xs">{studentName}</p>
                             <p className="text-[10px] text-gray-400 capitalize">{r.gender || '—'}</p>
@@ -310,15 +307,12 @@ export default function FCAdmissions() {
             {/* Top Identity Card */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-slate-50 border border-slate-200 rounded-2xl p-4">
               <div className="flex items-center gap-3.5">
-                {(viewing.passport_photo || viewing.profile_photo) ? (
-                  <img
-                    src={viewing.passport_photo || viewing.profile_photo}
-                    alt="Passport Photo"
-                    className="w-16 h-20 rounded-xl object-cover border-2 border-blue-600 shadow-xs"
-                  />
-                ) : (
-                  <Avatar name={`${viewing.first_name} ${viewing.last_name}`} size="lg" />
-                )}
+                <Avatar
+                  name={`${viewing.first_name} ${viewing.last_name}`}
+                  size="xl"
+                  src={viewing.passport_photo || viewing.profile_photo}
+                  className="w-16 h-20 !rounded-xl object-cover border-2 border-blue-600 shadow-xs"
+                />
                 <div>
                   <h3 className="text-base font-bold text-slate-900">
                     {viewing.first_name} {viewing.last_name === '.' ? '' : viewing.last_name}

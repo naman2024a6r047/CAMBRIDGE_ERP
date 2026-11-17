@@ -6,7 +6,7 @@ import SearchBar from '../../components/common/SearchBar';
 import Avatar from '../../components/common/Avatar';
 import StudentForm from '../../components/forms/StudentForm';
 import StudentFeeWidget from '../../components/common/StudentFeeWidget';
-import { feeStatusColor } from '../../utils/helpers';
+import { feeStatusColor, resolvePhotoUrl } from '../../utils/helpers';
 import { CLASSES, SECTIONS } from '../../constants/roles';
 import toast from 'react-hot-toast';
 
@@ -155,15 +155,12 @@ export default function Students() {
                   <tr key={s.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-2.5">
-                        {(s.profile_photo || s.passport_photo) ? (
-                          <img
-                            src={s.profile_photo || s.passport_photo}
-                            alt={`${s.first_name} ${s.last_name}`}
-                            className="w-8 h-8 rounded-full object-cover border border-slate-200 shadow-2xs shrink-0"
-                          />
-                        ) : (
-                          <Avatar name={`${s.first_name} ${s.last_name}`} size="sm" />
-                        )}
+                        <Avatar
+                          name={`${s.first_name} ${s.last_name}`}
+                          size="sm"
+                          src={s.profile_photo || s.passport_photo}
+                          className="border border-slate-200 shadow-2xs"
+                        />
                         <div className="min-w-0">
                           <p className="font-medium text-gray-800 text-sm truncate max-w-[120px] sm:max-w-none">
                             {s.first_name} {s.last_name}
@@ -250,15 +247,12 @@ export default function Students() {
         {viewing && (
           <div className="space-y-4 text-sm text-gray-700">
             <div className="flex items-center gap-4 border-b border-gray-100 pb-4">
-              {(viewing.profile_photo || viewing.passport_photo) ? (
-                <img
-                  src={viewing.profile_photo || viewing.passport_photo}
-                  alt={`${viewing.first_name} ${viewing.last_name}`}
-                  className="w-16 h-20 rounded-xl object-cover border-2 border-blue-600 shadow-xs shrink-0"
-                />
-              ) : (
-                <Avatar name={`${viewing.first_name} ${viewing.last_name}`} size="lg" />
-              )}
+              <Avatar
+                name={`${viewing.first_name} ${viewing.last_name}`}
+                size="xl"
+                src={viewing.profile_photo || viewing.passport_photo}
+                className="w-16 h-20 !rounded-xl object-cover border-2 border-blue-600 shadow-xs"
+              />
               <div>
                 <h3 className="text-lg font-bold text-gray-900">{viewing.first_name} {viewing.last_name}</h3>
                 <p className="text-gray-500 font-mono text-xs">Student ID: <strong>{viewing.student_id}</strong></p>

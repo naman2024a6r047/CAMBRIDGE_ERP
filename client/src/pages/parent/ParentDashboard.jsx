@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import API from '../../utils/api';
 import { useAuth } from '../../context/AuthContext';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
+import Avatar from '../../components/common/Avatar';
 import NotificationDetailModal from '../../components/common/NotificationDetailModal';
 import {
   DAYS,
@@ -277,29 +278,37 @@ export default function ParentDashboard() {
     <div className="max-w-7xl mx-auto space-y-6">
       {/* Top Hero Welcome Banner */}
       <div className="bg-gradient-to-r from-indigo-600 via-blue-600 to-indigo-700 rounded-3xl p-6 sm:p-7 text-white shadow-lg shadow-indigo-500/15 flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-widest text-indigo-100">
-            {getGreeting()}, {displayName}
-          </p>
-          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight mt-1">
-            Student Academic Dashboard
-          </h1>
-          <div className="flex flex-wrap items-center gap-2 mt-3 text-xs font-semibold text-indigo-50">
-            {student?.class && (
-              <span className="px-3 py-1 rounded-full bg-white/15 backdrop-blur-sm">
-                Class: {student.class} {student.section ? `— Sec ${student.section}` : ''}
-              </span>
-            )}
-            {student?.roll_number && (
-              <span className="px-3 py-1 rounded-full bg-white/15 backdrop-blur-sm">
-                Roll No: {student.roll_number}
-              </span>
-            )}
-            {student?.student_id && (
-              <span className="px-3 py-1 rounded-full bg-white/15 backdrop-blur-sm">
-                ID: {student.student_id}
-              </span>
-            )}
+        <div className="flex items-center gap-4">
+          <Avatar
+            name={displayName}
+            size="xl"
+            src={student?.profile_photo || student?.passport_photo || user?.profile_photo}
+            className="w-16 h-16 sm:w-20 sm:h-20 !rounded-2xl border-2 border-white/40 shadow-md object-cover bg-white/20 text-white font-bold"
+          />
+          <div>
+            <p className="text-xs font-bold uppercase tracking-widest text-indigo-100">
+              {getGreeting()}, {displayName}
+            </p>
+            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight mt-1">
+              Student Academic Dashboard
+            </h1>
+            <div className="flex flex-wrap items-center gap-2 mt-3 text-xs font-semibold text-indigo-50">
+              {student?.class && (
+                <span className="px-3 py-1 rounded-full bg-white/15 backdrop-blur-sm">
+                  Class: {student.class} {student.section ? `— Sec ${student.section}` : ''}
+                </span>
+              )}
+              {student?.roll_number && (
+                <span className="px-3 py-1 rounded-full bg-white/15 backdrop-blur-sm">
+                  Roll No: {student.roll_number}
+                </span>
+              )}
+              {student?.student_id && (
+                <span className="px-3 py-1 rounded-full bg-white/15 backdrop-blur-sm">
+                  ID: {student.student_id}
+                </span>
+              )}
+            </div>
           </div>
         </div>
 

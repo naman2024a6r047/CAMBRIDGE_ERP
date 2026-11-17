@@ -573,7 +573,7 @@ router.get('/admission-requests', protect, authorize('admin', 'admin2', 'fee_col
         pin_code:            s.pin_code,
         previous_school:     s.previous_school,
         aadhar_number:       s.aadhar_number,
-        passport_photo:      s.profile_photo,
+        passport_photo:      s.profile_photo || s.passport_photo || null,
         enquiry_mode:        s.enquiry_mode || 'Direct Entry',
         application_date:    s.admission_date || s.created_at,
         status:              statusMap[s.approval_status] || 'approved',

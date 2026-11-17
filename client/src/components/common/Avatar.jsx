@@ -1,4 +1,5 @@
-import { initials } from '../../utils/helpers';
+import { useState, useEffect } from 'react';
+import { initials, resolvePhotoUrl } from '../../utils/helpers';
 
 const palettes = [
   'bg-blue-100 text-blue-700',
@@ -25,11 +26,20 @@ const sizes = {
 };
 
 export default function Avatar({ name = '', size = 'sm', src, className = '' }) {
-  if (src) {
+  const [hasError, setHasError] = useState(false);
+
+  useEffect(() => {
+    setHasError(false);
+  }, [src]);
+
+  const resolved = resolvePhotoUrl(src);
+
+  if (resolved && !hasError) {
     return (
       <img
-        src={src}
+        src={resolved}
         alt={name}
+        onError={() => setHasError(true)}
         className={`${sizes[size]} rounded-full object-cover flex-shrink-0 ${className}`}
       />
     );

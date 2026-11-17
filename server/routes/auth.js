@@ -56,7 +56,7 @@ router.post('/login', loginLimiter, validateLogin, async (req, res) => {
           trimmedEmail.toLowerCase()
         ),
         include: [
-          { model: Student, as: 'linkedStudent', attributes: ['id', 'student_id', 'roll_number', 'first_name', 'last_name', 'class', 'section', 'date_of_birth', 'gender', 'session_id', 'parent_name', 'mother_name', 'category', 'aadhar_number', 'pen_number', 'family_id', 'parent_phone', 'parent_email', 'approval_status'] },
+          { model: Student, as: 'linkedStudent', attributes: ['id', 'student_id', 'roll_number', 'first_name', 'last_name', 'class', 'section', 'date_of_birth', 'gender', 'session_id', 'parent_name', 'mother_name', 'category', 'aadhar_number', 'pen_number', 'family_id', 'parent_phone', 'parent_email', 'approval_status', 'profile_photo', 'passport_photo'] },
           { model: Teacher, as: 'linkedTeacher', attributes: ['id', 'name', 'subject', 'assigned_classes', 'staff_type'] }
         ]
       });
@@ -129,7 +129,7 @@ router.post('/login', loginLimiter, validateLogin, async (req, res) => {
         email: user.email,
         role: user.role,
         phone: user.phone,
-        profile_photo: user.profile_photo,
+        profile_photo: user.profile_photo || user.linkedStudent?.profile_photo || user.linkedStudent?.passport_photo || null,
         linkedStudent: user.linkedStudent || null,
         linkedTeacher: user.linkedTeacher || null
       }

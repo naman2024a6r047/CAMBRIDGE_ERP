@@ -123,3 +123,24 @@ export const getTimeBasedGreeting = () => {
   if (hour >= 12 && hour < 17) return 'Good Afternoon';
   return 'Good Evening';
 };
+
+// ── Photo / Media URL Resolver ────────────────────────────────────────────────
+export const resolvePhotoUrl = (photoUrl) => {
+  if (!photoUrl || typeof photoUrl !== 'string') return null;
+  const p = photoUrl.trim();
+  if (!p) return null;
+  if (p.startsWith('data:') || p.startsWith('http://') || p.startsWith('https://') || p.startsWith('blob:')) {
+    return p;
+  }
+  // If raw base64 string without data: prefix
+  if (p.startsWith('/9j/')) {
+    return `data:image/jpeg;base64,${p}`;
+  }
+  if (p.startsWith('iVBORw0KGgo')) {
+    return `data:image/png;base64,${p}`;
+  }
+  const apiBase = (typeof process !== 'undefined' && process.env?.REACT_APP_API_URL)
+    ? process.env.REACT_APP_API_URL.replace(/\/api\/?$/, '')
+    : '';
+  return `${apiBase}${p.startsWith('/') ? '' : '/'}${p}`;
+};

@@ -122,16 +122,53 @@ export default function PublicAdmissionForm() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 2 * 1024 * 1024) {
-      toast.error('Photo size should be under 2MB.');
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Photo size should be under 5MB.');
       return;
     }
 
     const reader = new FileReader();
-    reader.onload = () => {
-      setFormData(prev => ({ ...prev, passport_photo: reader.result }));
-      setPhotoError(false);
-      toast.success('Passport photo attached!');
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+          // Standard passport ratio ~ 3.5cm x 4.5cm
+          const MAX_W = 360;
+          const MAX_H = 460;
+          if (width > height) {
+            if (width > MAX_W) {
+              height = Math.round(height * (MAX_W / width));
+              width = MAX_W;
+            }
+          } else {
+            if (height > MAX_H) {
+              width = Math.round(width * (MAX_H / height));
+              height = MAX_H;
+            }
+          }
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+          const base64Str = canvas.toDataURL('image/jpeg', 0.88);
+          setFormData(prev => ({ ...prev, passport_photo: base64Str, profile_photo: base64Str }));
+          setPhotoError(false);
+          toast.success('Passport photograph attached!');
+        } catch {
+          setFormData(prev => ({ ...prev, passport_photo: event.target.result, profile_photo: event.target.result }));
+          setPhotoError(false);
+          toast.success('Passport photograph attached!');
+        }
+      };
+      img.onerror = () => {
+        setFormData(prev => ({ ...prev, passport_photo: event.target.result, profile_photo: event.target.result }));
+        setPhotoError(false);
+        toast.success('Passport photograph attached!');
+      };
+      img.src = event.target.result;
     };
     reader.readAsDataURL(file);
   };

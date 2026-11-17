@@ -60,8 +60,11 @@ export const getPromotedClass = (currClass) => {
 export const loadLogoBase64 = async (logoUrl) => {
   if (!logoUrl) return null;
   if (typeof window === 'undefined') return null;
-  if (typeof logoUrl === 'string' && logoUrl.startsWith('data:image')) {
-    return logoUrl;
+  if (typeof logoUrl === 'string') {
+    const trimmed = logoUrl.trim();
+    if (trimmed.startsWith('data:image/png') || trimmed.startsWith('data:image/jpeg')) {
+      return trimmed;
+    }
   }
   try {
     return await new Promise((resolve) => {
@@ -85,13 +88,12 @@ export const loadLogoBase64 = async (logoUrl) => {
         clearTimeout(timer);
         resolve(null);
       };
-      let fullUrl = String(logoUrl);
-      if (typeof window !== 'undefined' && window.location) {
-        if (fullUrl.startsWith('/')) {
-          fullUrl = `${window.location.origin}${fullUrl}`;
-        } else if (!fullUrl.startsWith('http://') && !fullUrl.startsWith('https://')) {
-          fullUrl = `${window.location.origin}/${fullUrl}`;
-        }
+      let fullUrl = String(logoUrl).trim();
+      if (!fullUrl.startsWith('data:') && !fullUrl.startsWith('http://') && !fullUrl.startsWith('https://')) {
+        const apiBase = (typeof process !== 'undefined' && process.env?.REACT_APP_API_URL)
+          ? process.env.REACT_APP_API_URL.replace(/\/api\/?$/, '')
+          : (typeof window !== 'undefined' ? window.location.origin : '');
+        fullUrl = `${apiBase}${fullUrl.startsWith('/') ? '' : '/'}${fullUrl}`;
       }
       img.src = fullUrl;
     });
@@ -100,7 +102,72 @@ export const loadLogoBase64 = async (logoUrl) => {
   }
 };
 
-export const loadPhotoBase64 = loadLogoBase64;
+// ── Helper: Load Student Photograph as Base64 Image ─────────────────────────
+export const loadPhotoBase64 = async (photoUrl) => {
+  if (!photoUrl) return null;
+  if (typeof window === 'undefined') return null;
+
+  if (typeof photoUrl === 'string') {
+    const trimmed = photoUrl.trim();
+    if (trimmed.startsWith('data:image/png') || trimmed.startsWith('data:image/jpeg') || trimmed.startsWith('data:image/jpg')) {
+      return trimmed;
+    }
+    if (trimmed.startsWith('/9j/')) {
+      return `data:image/jpeg;base64,${trimmed}`;
+    }
+    if (trimmed.startsWith('iVBORw0KGgo')) {
+      return `data:image/png;base64,${trimmed}`;
+    }
+  }
+
+  try {
+    return await new Promise((resolve) => {
+      const timer = setTimeout(() => resolve(null), 4500);
+      const img = new Image();
+      img.crossOrigin = 'Anonymous';
+      img.onload = () => {
+        clearTimeout(timer);
+        try {
+          const canvas = document.createElement('canvas');
+          const maxDim = 500;
+          let w = img.width || 300;
+          let h = img.height || 300;
+          if (w > maxDim || h > maxDim) {
+            if (w > h) {
+              h = Math.round(h * (maxDim / w));
+              w = maxDim;
+            } else {
+              w = Math.round(w * (maxDim / h));
+              h = maxDim;
+            }
+          }
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, w, h);
+          resolve(canvas.toDataURL('image/jpeg', 0.9));
+        } catch (e) {
+          resolve(null);
+        }
+      };
+      img.onerror = () => {
+        clearTimeout(timer);
+        resolve(null);
+      };
+
+      let fullUrl = String(photoUrl).trim();
+      if (!fullUrl.startsWith('data:') && !fullUrl.startsWith('http://') && !fullUrl.startsWith('https://')) {
+        const apiBase = (typeof process !== 'undefined' && process.env?.REACT_APP_API_URL)
+          ? process.env.REACT_APP_API_URL.replace(/\/api\/?$/, '')
+          : (typeof window !== 'undefined' ? window.location.origin : '');
+        fullUrl = `${apiBase}${fullUrl.startsWith('/') ? '' : '/'}${fullUrl}`;
+      }
+      img.src = fullUrl;
+    });
+  } catch (e) {
+    return null;
+  }
+};
 
 // ── Helper: Draw Decorative Colored Pencils Along Top Border ─────────────────
 const drawTopPencils = (doc, startX, startY, totalWidth) => {
@@ -185,12 +252,14 @@ const drawStudentPhoto = (doc, x, y, w, h, photoBase64, studentName = '') => {
 
   if (photoBase64) {
     try {
-      const format = (typeof photoBase64 === 'string' && (photoBase64.startsWith('data:image/png') || photoBase64.startsWith('data:image/webp') || photoBase64.includes('image/png'))) ? 'PNG' : 'JPEG';
+      const isPng = typeof photoBase64 === 'string' && photoBase64.startsWith('data:image/png');
+      const format = isPng ? 'PNG' : 'JPEG';
       doc.addImage(photoBase64, format, x + 0.8, y + 0.8, w - 1.6, h - 1.6);
       doc.setDrawColor(203, 213, 225);
       doc.setLineWidth(0.2);
       doc.rect(x + 0.8, y + 0.8, w - 1.6, h - 1.6, 'S');
     } catch (e) {
+      console.warn('[PDF] Student photo render error:', e.message);
       drawPhotoPlaceholder(doc, x, y, w, h, studentName);
     }
   } else {
@@ -1890,9 +1959,11 @@ export const generateAdmissionFormPDF = async (admission, settings = {}) => {
 
   if (photoBase64) {
     try {
-      const format = (typeof photoBase64 === 'string' && (photoBase64.startsWith('data:image/png') || photoBase64.startsWith('data:image/webp') || photoBase64.includes('image/png'))) ? 'PNG' : 'JPEG';
+      const isPng = typeof photoBase64 === 'string' && photoBase64.startsWith('data:image/png');
+      const format = isPng ? 'PNG' : 'JPEG';
       doc.addImage(photoBase64, format, photoBoxX + 1, photoBoxY + 1, photoBoxW - 2, photoBoxH - 2);
-    } catch {
+    } catch (e) {
+      console.warn('[PDF] Admission form photo render error:', e.message);
       doc.setFontSize(6.5);
       doc.setTextColor(100, 116, 139);
       doc.text('Recent Photograph', photoBoxX + photoBoxW / 2, photoBoxY + 18, { align: 'center' });

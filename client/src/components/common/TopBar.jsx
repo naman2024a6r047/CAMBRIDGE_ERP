@@ -5,7 +5,7 @@ import API from '../../utils/api';
 import toast from 'react-hot-toast';
 import SendMessageModal from '../forms/SendMessageModal';
 import NotificationDetailModal from './NotificationDetailModal';
-import { formatDate } from '../../utils/helpers';
+import { formatDate, resolvePhotoUrl } from '../../utils/helpers';
 
 // Breadcrumbs helper mapping
 const routeBreadcrumbs = {
@@ -395,11 +395,12 @@ export default function TopBar({ title, onMenuClick }) {
             className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl overflow-hidden shadow-inner flex-shrink-0 relative group cursor-pointer"
             onClick={() => navigate(`${profileBasePath}/profile`)}
           >
-            {user?.profile_photo ? (
+            {resolvePhotoUrl(user?.profile_photo || user?.linkedStudent?.profile_photo || user?.linkedStudent?.passport_photo) ? (
               <img
-                src={`${process.env.REACT_APP_API_URL ? process.env.REACT_APP_API_URL.replace('/api', '') : ''}${user.profile_photo}`}
+                src={resolvePhotoUrl(user?.profile_photo || user?.linkedStudent?.profile_photo || user?.linkedStudent?.passport_photo)}
                 alt="Profile"
                 className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                onError={(e) => { e.currentTarget.style.display = 'none'; }}
               />
             ) : (
               <div className="w-full h-full bg-gradient-to-tr from-blue-600 to-indigo-500 text-white font-extrabold text-sm flex items-center justify-center group-hover:scale-110 transition-transform duration-300">

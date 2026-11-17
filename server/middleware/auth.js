@@ -28,13 +28,17 @@ const protect = async (req, res, next) => {
     req.user = await User.findByPk(decoded.id, {
       attributes: { exclude: ['password'] },
       include: [
-        { model: Student, as: 'linkedStudent', attributes: ['id', 'student_id', 'roll_number', 'first_name', 'last_name', 'class', 'section', 'date_of_birth', 'gender', 'session_id', 'parent_name', 'parent_phone', 'parent_email', 'approval_status'] },
+        { model: Student, as: 'linkedStudent', attributes: ['id', 'student_id', 'roll_number', 'first_name', 'last_name', 'class', 'section', 'date_of_birth', 'gender', 'session_id', 'parent_name', 'parent_phone', 'parent_email', 'approval_status', 'profile_photo', 'passport_photo'] },
         { model: Teacher, as: 'linkedTeacher', attributes: ['id', 'name', 'subject', 'assigned_classes'] }
       ],
     });
 
     if (!req.user || req.user.is_active === false) {
       return res.status(401).json({ message: 'User not found or deactivated.' });
+    }
+
+    if (req.user && !req.user.profile_photo) {
+      req.user.profile_photo = req.user.linkedStudent?.profile_photo || req.user.linkedStudent?.passport_photo || null;
     }
 
     // Role normalization: Treat 'superadmin' and 'super_admin' as full administrative 'admin'

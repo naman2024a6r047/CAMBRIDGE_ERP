@@ -1,7 +1,7 @@
 const express = require('express');
 const router  = express.Router();
 const { Op }  = require('sequelize');
-const { Student, Session, User, Teacher, ClassIncharge, Attendance, Result, ResultSubject, StudentAchievement, PromotionHistory, Fee } = require('../models');
+const { Student, Session, User, Teacher, ClassIncharge, Attendance, Result, ResultSubject, StudentAchievement, PromotionHistory, Fee, AdmissionRequest } = require('../models');
 const { buildStudentSessionAttendance } = require('../utils/attendanceSessionHelper');
 
 const { getTeacherAllowedClasses, isClassMatch } = require('../utils/teacherAllowedClasses');
@@ -708,12 +708,37 @@ router.get('/:id/performance', protect, hasPermission('VIEW_STUDENTS'), async (r
     };
 
     const stuJson = student.toJSON();
+    stuJson.profile_photo = stuJson.profile_photo || stuJson.passport_photo || null;
     if (!stuJson.profile_photo) {
       try {
         const stuUser = await User.findOne({ where: { linked_student_id: studentId }, attributes: ['profile_photo'] });
-        if (stuUser?.profile_photo) stuJson.profile_photo = stuUser.profile_photo;
+        if (stuUser?.profile_photo) {
+          stuJson.profile_photo = stuUser.profile_photo;
+          stuJson.passport_photo = stuUser.profile_photo;
+          Student.update({ profile_photo: stuUser.profile_photo, passport_photo: stuUser.profile_photo }, { where: { id: studentId } }).catch(() => {});
+        }
       } catch (e) {}
     }
+    if (!stuJson.profile_photo) {
+      try {
+        const adm = await AdmissionRequest.findOne({
+          where: {
+            [Op.or]: [
+              { student_id_created: studentId },
+              ...(stuJson.form_no ? [{ form_no: stuJson.form_no }] : []),
+              { [Op.and]: [{ first_name: stuJson.first_name }, { last_name: stuJson.last_name }, { parent_phone: stuJson.parent_phone }] }
+            ]
+          },
+          attributes: ['passport_photo']
+        });
+        if (adm?.passport_photo) {
+          stuJson.profile_photo = adm.passport_photo;
+          stuJson.passport_photo = adm.passport_photo;
+          Student.update({ profile_photo: adm.passport_photo, passport_photo: adm.passport_photo }, { where: { id: studentId } }).catch(() => {});
+        }
+      } catch (e) {}
+    }
+    stuJson.passport_photo = stuJson.passport_photo || stuJson.profile_photo || null;
 
     res.json({
       student: stuJson,
@@ -761,6 +786,35 @@ router.get('/:id', protect, hasPermission('VIEW_STUDENTS'), async (req, res) => 
 
     const sData = typeof student.toJSON === 'function' ? student.toJSON() : { ...student };
     sData.profile_photo = sData.profile_photo || sData.passport_photo || null;
+    if (!sData.profile_photo) {
+      try {
+        const stuUser = await User.findOne({ where: { linked_student_id: sData.id }, attributes: ['profile_photo'] });
+        if (stuUser?.profile_photo) {
+          sData.profile_photo = stuUser.profile_photo;
+          sData.passport_photo = stuUser.profile_photo;
+          Student.update({ profile_photo: stuUser.profile_photo, passport_photo: stuUser.profile_photo }, { where: { id: sData.id } }).catch(() => {});
+        }
+      } catch (e) {}
+    }
+    if (!sData.profile_photo) {
+      try {
+        const adm = await AdmissionRequest.findOne({
+          where: {
+            [Op.or]: [
+              { student_id_created: sData.id },
+              ...(sData.form_no ? [{ form_no: sData.form_no }] : []),
+              { [Op.and]: [{ first_name: sData.first_name }, { last_name: sData.last_name }, { parent_phone: sData.parent_phone }] }
+            ]
+          },
+          attributes: ['passport_photo']
+        });
+        if (adm?.passport_photo) {
+          sData.profile_photo = adm.passport_photo;
+          sData.passport_photo = adm.passport_photo;
+          Student.update({ profile_photo: adm.passport_photo, passport_photo: adm.passport_photo }, { where: { id: sData.id } }).catch(() => {});
+        }
+      } catch (e) {}
+    }
     sData.passport_photo = sData.passport_photo || sData.profile_photo || null;
     res.json(sData);
   } catch (err) { res.status(500).json({ message: err.message }); }
@@ -1157,6 +1211,35 @@ router.put('/:id', profileUpdateLimiter, protect, hasPermission('MANAGE_STUDENTS
     const student = await Student.findByPk(req.params.id);
     const sData = typeof student.toJSON === 'function' ? student.toJSON() : { ...student };
     sData.profile_photo = sData.profile_photo || sData.passport_photo || null;
+    if (!sData.profile_photo) {
+      try {
+        const stuUser = await User.findOne({ where: { linked_student_id: sData.id }, attributes: ['profile_photo'] });
+        if (stuUser?.profile_photo) {
+          sData.profile_photo = stuUser.profile_photo;
+          sData.passport_photo = stuUser.profile_photo;
+          Student.update({ profile_photo: stuUser.profile_photo, passport_photo: stuUser.profile_photo }, { where: { id: sData.id } }).catch(() => {});
+        }
+      } catch (e) {}
+    }
+    if (!sData.profile_photo) {
+      try {
+        const adm = await AdmissionRequest.findOne({
+          where: {
+            [Op.or]: [
+              { student_id_created: sData.id },
+              ...(sData.form_no ? [{ form_no: sData.form_no }] : []),
+              { [Op.and]: [{ first_name: sData.first_name }, { last_name: sData.last_name }, { parent_phone: sData.parent_phone }] }
+            ]
+          },
+          attributes: ['passport_photo']
+        });
+        if (adm?.passport_photo) {
+          sData.profile_photo = adm.passport_photo;
+          sData.passport_photo = adm.passport_photo;
+          Student.update({ profile_photo: adm.passport_photo, passport_photo: adm.passport_photo }, { where: { id: sData.id } }).catch(() => {});
+        }
+      } catch (e) {}
+    }
     sData.passport_photo = sData.passport_photo || sData.profile_photo || null;
     res.json(sData);
   } catch (err) { res.status(400).json({ message: err.message }); }

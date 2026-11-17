@@ -1,6 +1,7 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useSettings } from '../../context/SettingsContext';
+import { resolvePhotoUrl } from '../../utils/helpers';
 
 // Dynamic navigation item configuration with custom icons
 const navConfig = {
@@ -437,8 +438,13 @@ export default function Sidebar({ isOpen, onClose }) {
             if (window.innerWidth < 1024) onClose?.();
           }}>
             <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl overflow-hidden shadow-inner border border-blue-500/10">
-              {user?.profile_photo ? (
-                <img src={`${process.env.REACT_APP_API_URL ? process.env.REACT_APP_API_URL.replace('/api', '') : ''}${user.profile_photo}`} alt="" className="w-full h-full object-cover" />
+              {resolvePhotoUrl(user?.profile_photo || user?.linkedStudent?.profile_photo || user?.linkedStudent?.passport_photo) ? (
+                <img
+                  src={resolvePhotoUrl(user?.profile_photo || user?.linkedStudent?.profile_photo || user?.linkedStudent?.passport_photo)}
+                  alt=""
+                  className="w-full h-full object-cover"
+                  onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                />
               ) : (
                 <div className="w-full h-full bg-gradient-to-tr from-blue-600/30 to-indigo-500/30 text-blue-300 text-sm font-extrabold flex items-center justify-center">
                   {user?.name?.[0]?.toUpperCase()}
