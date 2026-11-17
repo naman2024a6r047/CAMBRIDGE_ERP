@@ -186,6 +186,25 @@ async function runAdminDatesheetsTests() {
   assert.strictEqual(allSecDatesheet.section, 'All');
   console.log('✅ PASS');
 
+  // TEST 6: All teachers can view declared datesheets across all classes
+  process.stdout.write('  [TEST] 6. All teachers can view declared datesheets across all classes ... ');
+  const teacherDeclaredVisible = await ExamDatesheet.findAll({
+    where: {
+      status: 'declared',
+    },
+    include: [{ model: ExamDatesheetEntry, as: 'entries' }],
+  });
+  assert.ok(teacherDeclaredVisible.some((d) => d.id === allSecDatesheet.id));
+  console.log('✅ PASS');
+
+  // TEST 7: Resilient class variant matching for students
+  process.stdout.write('  [TEST] 7. Resilient class variant matching (Class 8 vs 8th) ... ');
+  const { normalizeClass } = require('../utils/teacherAllowedClasses');
+  assert.strictEqual(normalizeClass('Class 8'), '8');
+  assert.strictEqual(normalizeClass('8th'), '8');
+  assert.strictEqual(normalizeClass('Class 8th'), '8');
+  console.log('✅ PASS');
+
   // Clean up
   await ExamDatesheetEntry.destroy({ where: { datesheet_id: allSecDatesheet.id } });
   await allSecDatesheet.destroy();

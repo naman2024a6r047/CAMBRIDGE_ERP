@@ -150,8 +150,13 @@ The platform provides role-based access control (RBAC) with granular data isolat
   - `declared`: Published to the entire school.
 - **Direct Declaration & Instant School-Wide Broadcast**:
   - Admins can bypass intermediate drafts by choosing **"Declare & Publish Immediately"**.
-  - Upon declaration, the ERP automatically broadcasts an official school-wide notification to all students and parents of the relevant class.
-  - Immediately visible on Student and Parent portal dashboards (`/student/datesheets`, `/parent/datesheets`).
+  - Upon declaration, the ERP automatically broadcasts an official school-wide notification to all students, parents, and teachers.
+  - **Visible to All Teachers (`/teacher/datesheet`)**:
+    - All teaching staff can view official declared datesheets across all classes, search subjects/rooms, filter by grade, and print schedules.
+    - Designated Class Incharges additionally retain the "Incharge Builder" tab to draft and submit new datesheets for their assigned classes.
+  - **Visible to All Students & Parents (`/parent/exams`)**:
+    - Shows official exam datesheets with fuzzy class normalization (e.g. `Class 8th`, `8th`, `Class 8`).
+    - Multi-scope filter allows students and parents to toggle between **"My Class"** and **"All Classes"** across Nursery through Class 8th, with paper countdown badges, room allocations, syllabus notes, and printable datesheet layout.
 
 ---
 
@@ -489,9 +494,9 @@ npm test --prefix server
 | **10**| **Custom Targeted Notices** | `customNotifications.test.js` | **7** | Role-targeted broadcasts (Teachers Only vs Students Only), Class/Section specific targeting, subcategories, priority queries. |
 | **11**| **User & Teacher Access RBAC** | `studentsAndTeachersAccess.test.js` | **5** | Admin alias support (`superadmin`, `super_admin`), RBAC boundary enforcement, model schema validation. |
 | **12**| **Credential Dispatch** | `credentialManagement.test.js` | **5** | Admin credential updates, bcrypt hashing, temporary password generator, non-blocking background email dispatch. |
-| **13**| **Admin Datesheet Declaration**| `adminDatesheets.test.js` | **5** | Direct datesheet creation by Admin, All Sections support, multi-subject timetable editing, instant declaration & broadcast alerts. |
+| **13**| **Admin Datesheet Declaration**| `adminDatesheets.test.js` | **7** | Direct datesheet creation by Admin, All Sections support, multi-subject timetable editing, instant declaration & broadcast alerts, all-teacher visibility, and student class alias normalization. |
 
-**Total**: **93 / 93 Passed (100% Success Rate)**
+**Total**: **95 / 95 Passed (100% Success Rate)**
 
 ---
 

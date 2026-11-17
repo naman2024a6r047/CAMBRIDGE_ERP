@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import API from '../../utils/api';
 import { useAuth } from '../../context/AuthContext';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
+import { CLASSES } from '../../constants/roles';
 import toast from 'react-hot-toast';
 
 const EXAM_TYPE_LABELS = {
@@ -54,29 +55,36 @@ export default function MyExams() {
   const [datesheets, setDatesheets] = useState([]);
   const [upcomingEntries, setUpcomingEntries] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [selectedClassScope, setSelectedClassScope] = useState(student?.class ? 'my_class' : 'all');
 
-  useEffect(() => {
-    let active = true;
-    API.get('/datesheets/student')
-      .then((res) => {
-        if (!active) return;
-        setDatesheets(Array.isArray(res.data?.datesheets) ? res.data.datesheets : []);
-        setUpcomingEntries(Array.isArray(res.data?.upcomingEntries) ? res.data.upcomingEntries : []);
-      })
-      .catch(() => {
-        if (active) toast.error('Failed to load exam datesheets.');
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
-    return () => { active = false; };
+  const fetchDatesheets = useCallback(async (scope) => {
+    setLoading(true);
+    try {
+      const params = {};
+      if (scope === 'all') {
+        params.class = 'all';
+      } else if (scope !== 'my_class') {
+        params.class = scope;
+      }
+      // If scope === 'my_class', no param sent -> backend defaults to student.class with fuzzy normalization
+
+      const res = await API.get('/datesheets/student', { params });
+      setDatesheets(Array.isArray(res.data?.datesheets) ? res.data.datesheets : []);
+      setUpcomingEntries(Array.isArray(res.data?.upcomingEntries) ? res.data.upcomingEntries : []);
+    } catch {
+      toast.error('Failed to load exam datesheets.');
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  if (loading) return <LoadingSpinner />;
+  useEffect(() => {
+    fetchDatesheets(selectedClassScope);
+  }, [selectedClassScope, fetchDatesheets]);
 
-  const classLabel = student
+  const classLabel = student?.class
     ? `${student.class}${student.section ? ` — Section ${student.section}` : ''}`
-    : 'Your Class';
+    : 'All Classes';
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
@@ -90,7 +98,9 @@ export default function MyExams() {
             Declared Exam Datesheets
           </h1>
           <p className="text-xs font-medium text-slate-500 mt-1">
-            Official examination datesheets approved and declared for {classLabel}.
+            {selectedClassScope === 'my_class' && student?.class
+              ? `Official examination datesheets approved and declared for ${classLabel}.`
+              : 'Official examination datesheets declared across all academic classes.'}
           </p>
         </div>
 
@@ -111,17 +121,83 @@ export default function MyExams() {
         </div>
       </div>
 
-      {datesheets.length === 0 ? (
-        <div className="bg-white rounded-3xl border border-slate-100 shadow-card p-12 text-center">
-          <div className="w-14 h-14 mx-auto rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400 mb-3">
+      {/* Scope Filter Tabs */}
+      <div className="bg-white rounded-3xl border border-slate-100 shadow-card p-4 space-y-2 print:hidden">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-bold text-slate-600">Select Class Schedule:</span>
+          <span className="text-[11px] text-slate-400">View datesheets for any grade</span>
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          {student?.class && (
+            <button
+              type="button"
+              onClick={() => setSelectedClassScope('my_class')}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                selectedClassScope === 'my_class'
+                  ? 'bg-rose-600 text-white shadow-xs'
+                  : 'bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100'
+              }`}
+            >
+              🎓 My Class ({student.class})
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => setSelectedClassScope('all')}
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
+              selectedClassScope === 'all'
+                ? 'bg-slate-800 text-white shadow-xs'
+                : 'bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100'
+            }`}
+          >
+            🌐 All Classes
+          </button>
+          {CLASSES.map((cls) => (
+            <button
+              key={cls}
+              type="button"
+              onClick={() => setSelectedClassScope(cls)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                selectedClassScope === cls
+                  ? 'bg-indigo-600 text-white shadow-xs'
+                  : 'bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100'
+              }`}
+            >
+              {cls}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {loading ? (
+        <LoadingSpinner />
+      ) : datesheets.length === 0 ? (
+        <div className="bg-white rounded-3xl border border-slate-100 shadow-card p-12 text-center space-y-3">
+          <div className="w-14 h-14 mx-auto rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400">
             <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
             </svg>
           </div>
-          <h3 className="text-base font-bold text-slate-800">No Declared Exam Datesheets Yet</h3>
-          <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto">
-            Once your Class Incharge prepares and the Admin approves &amp; declares an examination datesheet, the full schedule will appear here automatically.
+          <h3 className="text-base font-bold text-slate-800">
+            {selectedClassScope === 'my_class'
+              ? `No Declared Datesheets for ${classLabel} Yet`
+              : 'No Declared Exam Datesheets in this Category'}
+          </h3>
+          <p className="text-xs text-slate-500 max-w-md mx-auto">
+            Once an examination datesheet is officially approved &amp; declared, the complete schedule appears here automatically.
           </p>
+          {selectedClassScope === 'my_class' && (
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => setSelectedClassScope('all')}
+                className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-sm transition-all inline-flex items-center gap-1.5"
+              >
+                <span>Browse All School Datesheets</span>
+                <span>➔</span>
+              </button>
+            </div>
+          )}
         </div>
       ) : (
         <div className="space-y-6">
@@ -134,10 +210,10 @@ export default function MyExams() {
                       {EXAM_TYPE_LABELS[ds.exam_type] || 'Exam'}
                     </span>
                     <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                      Declared
+                      ✓ Declared
                     </span>
-                    <span className="text-xs font-semibold text-slate-500">
-                      {ds.class} — {['all', 'ALL', 'All'].includes(ds.section) ? 'All Sections' : `Section ${ds.section}`}
+                    <span className="text-xs font-extrabold text-slate-700 bg-slate-100 px-2.5 py-0.5 rounded-full">
+                      {ds.class} — {['all', 'ALL', 'All', 'All Sections'].includes(ds.section) ? 'All Sections' : `Section ${ds.section}`}
                     </span>
                   </div>
                   <h2 className="text-xl font-extrabold text-slate-800 mt-2">{ds.exam_name}</h2>
@@ -146,9 +222,14 @@ export default function MyExams() {
                       Declared on {new Date(ds.declared_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
                     </p>
                   )}
+                  {ds.instructions && (
+                    <p className="text-xs text-slate-600 mt-1 italic font-medium">
+                      Notice: {ds.instructions}
+                    </p>
+                  )}
                 </div>
                 {ds.createdByTeacher?.name && (
-                  <div className="text-xs text-slate-500 font-medium bg-white px-3.5 py-2 rounded-xl border border-slate-200/80">
+                  <div className="text-xs text-slate-500 font-medium bg-white px-3.5 py-2 rounded-xl border border-slate-200/80 self-start md:self-auto">
                     Prepared by <span className="font-bold text-slate-700">{ds.createdByTeacher.name}</span>
                   </div>
                 )}
@@ -178,15 +259,11 @@ export default function MyExams() {
                           <td className="py-3.5 px-5 text-xs font-semibold text-slate-600 whitespace-nowrap">
                             {formatTime12(entry.start_time)} – {formatTime12(entry.end_time)}
                           </td>
-                          <td className="py-3.5 px-5 text-xs font-medium text-slate-500">
-                            {entry.room || 'TBA'}
-                          </td>
-                          <td className="py-3.5 px-5 text-xs text-slate-500 max-w-xs">
-                            {entry.syllabus_notes || '—'}
-                          </td>
+                          <td className="py-3.5 px-5 text-xs font-medium text-slate-600">{entry.room || '—'}</td>
+                          <td className="py-3.5 px-5 text-xs text-slate-500">{entry.syllabus_notes || '—'}</td>
                           <td className="py-3.5 px-5 text-right whitespace-nowrap">
                             {badge && (
-                              <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${badge.cls}`}>
+                              <span className={`inline-block text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${badge.cls}`}>
                                 {badge.label}
                               </span>
                             )}
@@ -197,15 +274,6 @@ export default function MyExams() {
                   </tbody>
                 </table>
               </div>
-
-              {ds.instructions && (
-                <div className="px-6 py-4 bg-amber-50/60 border-t border-amber-100 text-xs text-amber-900">
-                  <span className="font-bold uppercase tracking-wider text-[10px] text-amber-700 mr-2">
-                    Instructions:
-                  </span>
-                  {ds.instructions}
-                </div>
-              )}
             </div>
           ))}
         </div>
@@ -213,4 +281,3 @@ export default function MyExams() {
     </div>
   );
 }
-

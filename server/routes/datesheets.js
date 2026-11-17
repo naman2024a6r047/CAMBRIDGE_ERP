@@ -47,6 +47,37 @@ const sortDatesheetEntries = (dsJson) => {
   return dsJson;
 };
 
+// Resilient class matching helper
+const getEquivalentClasses = (className) => {
+  if (!className || className === 'all' || className === 'All') return [];
+  const raw = String(className).trim();
+  const digits = raw.match(/\d+/);
+  const variants = new Set([raw]);
+
+  if (digits) {
+    const num = digits[0];
+    variants.add(num);
+    variants.add(`Class ${num}`);
+    variants.add(`Class ${num}th`);
+    variants.add(`${num}th`);
+    variants.add(`Grade ${num}`);
+    if (num === '1') { variants.add('1st'); variants.add('Class 1st'); }
+    if (num === '2') { variants.add('2nd'); variants.add('Class 2nd'); }
+    if (num === '3') { variants.add('3rd'); variants.add('Class 3rd'); }
+  } else {
+    const lower = raw.toLowerCase();
+    if (lower.includes('nursery')) {
+      variants.add('Nursery'); variants.add('Class Nursery');
+    } else if (lower.includes('lkg')) {
+      variants.add('LKG'); variants.add('Class LKG'); variants.add('Lower KG');
+    } else if (lower.includes('ukg')) {
+      variants.add('UKG'); variants.add('Class UKG'); variants.add('Upper KG');
+    }
+  }
+
+  return Array.from(variants);
+};
+
 async function notifyAdminsOnSubmission(datesheet, senderUserId) {
   try {
     const admins = await User.findAll({
@@ -88,12 +119,18 @@ router.get('/incharge', protect, authorize('teacher', 'admin', 'admin2'), async 
         section: ic.section,
         session_id: ic.session_id,
       }));
-      if (assignedClasses.length === 0) {
-        return res.json({ assignedClasses: [], datesheets: [] });
+
+      // Every teacher can view ALL declared datesheets, plus incharge can view their drafts
+      const orConditions = [{ status: 'declared' }];
+      if (assignedClasses.length > 0) {
+        assignedClasses.forEach((ac) => {
+          orConditions.push({
+            class: ac.class,
+            section: { [Op.in]: [ac.section, 'All', 'ALL', 'all', 'All Sections'] },
+          });
+        });
       }
-      where = {
-        [Op.or]: assignedClasses.map((ac) => ({ class: ac.class, section: ac.section })),
-      };
+      where = { [Op.or]: orConditions };
     } else {
       const students = await Student.findAll({
         where: { is_active: true, approval_status: 'approved' },
@@ -692,7 +729,7 @@ router.post('/bulk-declare', protect, authorize('admin', 'admin2'), async (req, 
   }
 });
 
-// GET /api/datesheets/student — Declared datesheets for logged-in Student/Parent (or queried class/section for staff)
+// GET /api/datesheets/student — Declared datesheets for logged-in Student/Parent, Teachers, or queried class/section
 router.get('/student', protect, async (req, res) => {
   try {
     res.set('Cache-Control', 'no-store');
@@ -701,15 +738,24 @@ router.get('/student', protect, async (req, res) => {
 
     if (req.user.role === 'student' || req.user.role === 'parent') {
       const stu = req.user.linkedStudent;
-      if (!stu) {
-        return res.json({ datesheets: [], upcomingEntries: [] });
+      // If user queries all classes or entire school view, show all declared datesheets
+      if (req.query.class === 'all' || req.query.all === 'true' || req.query.view === 'all') {
+        cls = null;
+        section = null;
+      } else if (req.query.class) {
+        cls = req.query.class;
+        section = req.query.section || null;
+      } else if (stu) {
+        cls = stu.class;
+        section = stu.section;
       }
-      cls = stu.class;
-      section = stu.section;
     }
 
     const where = { status: 'declared' };
-    if (cls) where.class = cls;
+    if (cls && !['all', 'ALL', 'All', 'All Classes'].includes(String(cls).trim())) {
+      const eqClasses = getEquivalentClasses(cls);
+      where.class = { [Op.in]: eqClasses };
+    }
     if (section && !['all', 'ALL', 'All', 'All Sections'].includes(String(section).trim())) {
       where[Op.or] = [
         { section: section },
