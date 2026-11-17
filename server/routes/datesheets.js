@@ -11,6 +11,7 @@ const {
   Teacher,
   User,
   Notification,
+  Session,
 } = require('../models');
 const { protect, authorize } = require('../middleware/auth');
 
@@ -170,18 +171,38 @@ router.post('/', protect, authorize('teacher', 'admin', 'admin2'), async (req, r
       }
     }
 
-    const status = action === 'submit' ? 'submitted' : 'draft';
+    const isAdmin = ['admin', 'admin2', 'superadmin', 'super_admin'].includes(req.user.role);
+    let status = 'draft';
+    if (action === 'submit') {
+      status = 'submitted';
+    } else if (isAdmin && (action === 'declare' || action === 'publish')) {
+      status = 'declared';
+    } else if (isAdmin && action === 'approve') {
+      status = 'approved';
+    }
+
+    let effSessionId = session_id;
+    if (!effSessionId) {
+      const activeSession = await Session.findOne({ where: { is_active: true } });
+      effSessionId = activeSession?.id || null;
+    }
+
+    const now = new Date();
     const datesheet = await ExamDatesheet.create(
       {
         exam_name: exam_name.trim(),
         exam_type,
         class: cls.trim(),
         section: section.trim(),
-        session_id: session_id || null,
+        session_id: effSessionId,
         created_by_teacher_id: req.user.linked_teacher_id || null,
         created_by_user_id: req.user.id,
         status,
         instructions: instructions ? String(instructions).trim() : null,
+        reviewed_by: (status === 'approved' || status === 'declared') ? req.user.id : null,
+        reviewed_at: (status === 'approved' || status === 'declared') ? now : null,
+        declared_by: status === 'declared' ? req.user.id : null,
+        declared_at: status === 'declared' ? now : null,
       },
       { transaction: t }
     );
@@ -203,6 +224,24 @@ router.post('/', protect, authorize('teacher', 'admin', 'admin2'), async (req, r
 
     if (status === 'submitted') {
       await notifyAdminsOnSubmission(datesheet, req.user.id);
+    } else if (status === 'declared') {
+      try {
+        const sorted = sortDatesheetEntries(datesheet.toJSON());
+        const firstDate = sorted.entries?.[0]?.exam_date;
+        const lastDate = sorted.entries?.[sorted.entries.length - 1]?.exam_date;
+        const rangeText = firstDate && lastDate && firstDate !== lastDate ? `${firstDate} to ${lastDate}` : (firstDate || '');
+
+        await Notification.create({
+          title: `Exam Datesheet Declared: ${datesheet.exam_name} (${datesheet.class} - ${datesheet.section})`,
+          message: `The ${datesheet.exam_name} examination datesheet for ${datesheet.class} - Section ${datesheet.section}${rangeText ? ` (${rangeText})` : ''} has been officially declared. Check the Upcoming Exams section for your full schedule.`,
+          type: 'exam_datesheet',
+          recipient_type: 'all',
+          recipient_role: 'all',
+          sent_by: req.user.id,
+        });
+      } catch (notifErr) {
+        console.error('[Datesheets][Declare] Broadcast notification failed:', notifErr.message);
+      }
     }
 
     const created = await ExamDatesheet.findByPk(datesheet.id, { include: DATESHEET_INCLUDES });
@@ -261,13 +300,24 @@ router.put('/:id', protect, authorize('teacher', 'admin', 'admin2'), async (req,
       }
     }
 
+    const isAdmin = ['admin', 'admin2', 'superadmin', 'super_admin'].includes(req.user.role);
     let nextStatus = datesheet.status;
     let clearReview = false;
+    let declaredNow = false;
+    const now = new Date();
+
     if (action === 'submit') {
       nextStatus = 'submitted';
       clearReview = true;
-    } else if (action === 'draft' && !['approved', 'declared'].includes(datesheet.status)) {
-      nextStatus = 'draft';
+    } else if (isAdmin && (action === 'declare' || action === 'publish')) {
+      nextStatus = 'declared';
+      declaredNow = true;
+    } else if (isAdmin && action === 'approve') {
+      nextStatus = 'approved';
+    } else if (action === 'draft') {
+      if (isAdmin || !['approved', 'declared'].includes(datesheet.status)) {
+        nextStatus = 'draft';
+      }
     }
 
     await datesheet.update(
@@ -277,6 +327,16 @@ router.put('/:id', protect, authorize('teacher', 'admin', 'admin2'), async (req,
         instructions: instructions !== undefined ? (instructions ? String(instructions).trim() : null) : datesheet.instructions,
         status: nextStatus,
         ...(clearReview ? { review_notes: null, reviewed_by: null, reviewed_at: null } : {}),
+        ...(declaredNow ? {
+          reviewed_by: datesheet.reviewed_by || req.user.id,
+          reviewed_at: datesheet.reviewed_at || now,
+          declared_by: req.user.id,
+          declared_at: now
+        } : {}),
+        ...(isAdmin && action === 'approve' ? {
+          reviewed_by: req.user.id,
+          reviewed_at: now
+        } : {})
       },
       { transaction: t }
     );
@@ -301,6 +361,24 @@ router.put('/:id', protect, authorize('teacher', 'admin', 'admin2'), async (req,
 
     if (action === 'submit') {
       await notifyAdminsOnSubmission(datesheet, req.user.id);
+    } else if (declaredNow) {
+      try {
+        const sorted = sortDatesheetEntries(datesheet.toJSON());
+        const firstDate = sorted.entries?.[0]?.exam_date;
+        const lastDate = sorted.entries?.[sorted.entries.length - 1]?.exam_date;
+        const rangeText = firstDate && lastDate && firstDate !== lastDate ? `${firstDate} to ${lastDate}` : (firstDate || '');
+
+        await Notification.create({
+          title: `Exam Datesheet Declared: ${datesheet.exam_name} (${datesheet.class} - ${datesheet.section})`,
+          message: `The ${datesheet.exam_name} examination datesheet for ${datesheet.class} - Section ${datesheet.section}${rangeText ? ` (${rangeText})` : ''} has been officially declared. Check the Upcoming Exams section for your full schedule.`,
+          type: 'exam_datesheet',
+          recipient_type: 'all',
+          recipient_role: 'all',
+          sent_by: req.user.id,
+        });
+      } catch (notifErr) {
+        console.error('[Datesheets][Declare] Broadcast notification failed:', notifErr.message);
+      }
     }
 
     const updated = await ExamDatesheet.findByPk(datesheet.id, { include: DATESHEET_INCLUDES });
