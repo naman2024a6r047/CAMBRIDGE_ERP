@@ -40,9 +40,31 @@ export default function FCAdmission() {
 
   return (
     <div className="max-w-2xl">
-      <div className="mb-5">
-        <h2 className="text-lg font-bold text-gray-800">New Admission Request</h2>
-        <p className="text-gray-400 text-sm mt-0.5">Fill in student details. Admin will approve and create the student account.</p>
+      <div className="mb-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-bold text-gray-800">New Admission Request</h2>
+          <p className="text-gray-400 text-sm mt-0.5">Fill in student details. Admin will approve and create the student account.</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              navigator.clipboard.writeText(`${window.location.origin}/admission`);
+              toast.success('Public form link copied!');
+            }}
+            className="px-3 py-1.5 bg-blue-50 border border-blue-200 text-blue-700 rounded-xl text-xs font-semibold hover:bg-blue-100 transition-colors"
+          >
+            📋 Copy Public Link
+          </button>
+          <a
+            href="/admission"
+            target="_blank"
+            rel="noreferrer"
+            className="px-3 py-1.5 bg-blue-600 text-white rounded-xl text-xs font-semibold hover:bg-blue-700 transition-colors"
+          >
+            Open Public Form ↗
+          </a>
+        </div>
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-6">

@@ -12,9 +12,13 @@ const FC_ROLES = ['admin', 'admin2', 'fee_collector'];
 
 // (C5 fix) — whitelisted fields for admission requests
 const ADMISSION_REQUEST_FIELDS = [
-  'first_name', 'last_name', 'date_of_birth', 'gender',
+  'form_no', 'first_name', 'last_name', 'date_of_birth', 'gender',
   'applying_class', 'parent_name', 'parent_phone', 'parent_email',
-  'parent_address', 'previous_school', 'remarks', 'admission_fee_paid',
+  'parent_address', 'residential_address', 'previous_school', 'remarks', 'admission_fee_paid',
+  'father_name', 'father_occupation', 'father_phone', 'father_whatsapp',
+  'mother_name', 'mother_occupation', 'mother_phone', 'mother_whatsapp',
+  'post_office_tehsil', 'district', 'pin_code', 'aadhar_number', 'passport_photo',
+  'enquiry_mode', 'application_date', 'documents_submitted', 'source',
 ];
 
 
@@ -431,26 +435,44 @@ router.get('/admission-requests', protect, authorize('admin', 'admin2', 'fee_col
       .filter(s => !linkedStudentIds.has(s.id))
       .map(s => ({
         id: `student-${s.id}`,
-        first_name: s.first_name,
-        last_name: s.last_name,
-        date_of_birth: s.date_of_birth,
-        gender: s.gender,
-        applying_class: s.class,
-        parent_name: s.parent_name,
-        parent_phone: s.parent_phone,
-        parent_email: s.parent_email,
-        parent_address: s.parent_address,
-        previous_school: s.previous_school,
-        status: statusMap[s.approval_status] || 'approved',
-        submitted_by: s.created_by,
-        reviewed_by: s.approved_by,
-        approved_at: s.approved_at,
-        student_id_created: s.id,
-        admission_fee_paid: 0,
-        created_at: s.created_at,
-        updated_at: s.updated_at,
-        submittedByUser: null,
-        _source: 'students_table',
+        form_no:             s.form_no || `ICS-STU-${s.id}`,
+        first_name:          s.first_name,
+        last_name:           s.last_name,
+        date_of_birth:       s.date_of_birth,
+        gender:              s.gender,
+        applying_class:      s.class,
+        parent_name:         s.parent_name,
+        father_name:         s.parent_name,
+        father_phone:        s.father_phone || s.parent_phone,
+        father_whatsapp:     s.father_whatsapp,
+        father_occupation:   s.father_occupation || s.parent_occupation,
+        mother_name:         s.mother_name,
+        mother_phone:        s.mother_phone,
+        mother_whatsapp:     s.mother_whatsapp,
+        mother_occupation:   s.mother_occupation,
+        parent_phone:        s.parent_phone,
+        parent_email:        s.parent_email,
+        parent_address:      s.parent_address,
+        residential_address: s.parent_address,
+        post_office_tehsil:  s.post_office_tehsil,
+        district:            s.district || 'Kishtwar',
+        pin_code:            s.pin_code,
+        previous_school:     s.previous_school,
+        aadhar_number:       s.aadhar_number,
+        passport_photo:      s.profile_photo,
+        enquiry_mode:        s.enquiry_mode || 'Direct Entry',
+        application_date:    s.admission_date || s.created_at,
+        status:              statusMap[s.approval_status] || 'approved',
+        submitted_by:        s.created_by,
+        reviewed_by:         s.approved_by,
+        approved_at:         s.approved_at,
+        student_id_created:  s.id,
+        admission_fee_paid:  0,
+        created_at:          s.created_at,
+        updated_at:          s.updated_at,
+        submittedByUser:     null,
+        source:              'staff_entry',
+        _source:             'students_table',
       }));
 
     // 3. Merge and return
@@ -492,6 +514,9 @@ router.put('/admission-requests/:id', protect, authorize('admin', 'admin2'), asy
     if (status === 'approved') {
       const activeSession = await Session.findOne({ where: { is_active: true }, transaction: txn });
 
+      const section = req.body.section || 'A';
+      const rollNumber = req.body.roll_number ? parseInt(req.body.roll_number, 10) : null;
+
       newStudent = await Student.create({
         student_id:           'PENDING',
         first_name:           request.first_name,
@@ -499,17 +524,34 @@ router.put('/admission-requests/:id', protect, authorize('admin', 'admin2'), asy
         date_of_birth:        request.date_of_birth,
         gender:               request.gender,
         class:                request.applying_class,
-        section:              'A',
-        parent_name:          request.parent_name,
-        parent_phone:         request.parent_phone,
+        section:              section,
+        roll_number:          rollNumber,
+        parent_name:          request.parent_name || request.father_name,
+        mother_name:          request.mother_name,
+        parent_phone:         request.parent_phone || request.father_phone,
         parent_email:         request.parent_email,
-        parent_address:       request.parent_address,
+        parent_address:       request.residential_address || request.parent_address,
+        father_occupation:    request.father_occupation,
+        mother_occupation:    request.mother_occupation,
+        father_phone:         request.father_phone || request.parent_phone,
+        father_whatsapp:      request.father_whatsapp,
+        mother_phone:         request.mother_phone,
+        mother_whatsapp:      request.mother_whatsapp,
+        post_office_tehsil:   request.post_office_tehsil,
+        district:             request.district || 'Kishtwar',
+        pin_code:             request.pin_code,
+        previous_school:      request.previous_school,
+        aadhar_number:        request.aadhar_number,
+        profile_photo:        request.passport_photo,
+        enquiry_mode:         request.enquiry_mode,
+        form_no:              request.form_no,
+        admission_date:       request.application_date || new Date().toISOString().split('T')[0],
         session_id:           activeSession?.id,
         is_active:            true,
         student_status:       'active',
         source:               'admission_approved',
         admission_request_id: request.id,
-        created_by:           request.submitted_by,
+        created_by:           request.submitted_by || req.user.id,
         approval_status:      'approved',
         approved_by:          req.user.id,
         approved_at:          new Date(),
@@ -531,11 +573,20 @@ router.put('/admission-requests/:id', protect, authorize('admin', 'admin2'), asy
 
       await request.update({ student_id_created: newStudent.id }, { transaction: txn });
 
+      // Auto-assign fees according to class fee structure configured by admin
+      const { getOrCreateFeeRecord, assignPublishedFeeStructure, getFeeStructureForClass, MONTHS } = require('../services/feeService');
       const now = new Date();
       const month = MONTHS[now.getMonth()];
       const year = now.getFullYear();
 
-      await createAdmissionFee(newStudent, 0, txn);
+      const structure = await getFeeStructureForClass(newStudent.class, newStudent.session_id);
+      if (structure && Number(structure.admission_fee || 0) > 0) {
+        await getOrCreateFeeRecord(newStudent, month, year, 'admission', txn).catch(() => {});
+      }
+      if (structure && Number(structure.monthly_fee || 0) > 0) {
+        await getOrCreateFeeRecord(newStudent, month, year, 'monthly', txn).catch(() => {});
+      }
+      await assignPublishedFeeStructure(newStudent, txn).catch(() => {});
     }
 
     await txn.commit();

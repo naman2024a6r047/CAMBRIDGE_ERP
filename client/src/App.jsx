@@ -65,6 +65,7 @@ import FCDashboard from './pages/feecollector/FCDashboard';
 import FCCollect from './pages/feecollector/FCCollect';
 import FCAdmission from './pages/feecollector/FCAdmission';
 import CredentialManagement from './pages/CredentialManagement';
+import PublicAdmissionForm from './pages/public/PublicAdmissionForm';
 
 export default function App() {
   return (
@@ -75,6 +76,9 @@ export default function App() {
           <Routes>
             <Route path="/login" element={<LoginPage />} />
             <Route path="/suspended" element={<SuspensionPage />} />
+            <Route path="/admission" element={<PublicAdmissionForm />} />
+            <Route path="/admission-form" element={<PublicAdmissionForm />} />
+            <Route path="/apply" element={<PublicAdmissionForm />} />
             <Route path="/" element={<Navigate to="/login" replace />} />
 
           <Route

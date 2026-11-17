@@ -3,9 +3,21 @@ const { makeStudentId, makeStudentEmail, makeTemporaryPassword } = require('./cr
 const { getOrCreateFeeRecord, MONTHS } = require('../services/feeService');
 
 async function migratePendingStudents() {
+  const { Setting } = require('../models');
   const txn = await sequelize.transaction();
   try {
-    // 1. Auto-approve and activate any pending students in the database
+    // Check if legacy migration already completed to prevent auto-approving new pending admission requests
+    const legacyMigrated = await Setting.findOne({
+      where: { key: 'legacy_pending_students_migrated' },
+      transaction: txn
+    }).catch(() => null);
+
+    if (legacyMigrated && legacyMigrated.value === 'true') {
+      await txn.commit();
+      return;
+    }
+
+    // 1. Auto-approve and activate any legacy pending students in the database
     const pendingStudents = await Student.findAll({
       where: { approval_status: 'pending' },
       transaction: txn,
@@ -29,9 +41,13 @@ async function migratePendingStudents() {
     }
 
     // 2. Restore any admission requests with status 'pending' that were created by the old migrator
-    // or don't have a student record yet, so the admin's students are restored.
+    // (Excluding public_portal requests which must remain pending for admin approval)
+    const { Op } = require('sequelize');
     const pendingRequests = await AdmissionRequest.findAll({
-      where: { status: 'pending' },
+      where: {
+        status: 'pending',
+        source: { [Op.ne]: 'public_portal' },
+      },
       transaction: txn,
     });
 
@@ -146,6 +162,18 @@ async function migratePendingStudents() {
         await student.update({ admission_request_id: request.id }, { transaction: txn });
         console.log(`[MIGRATOR] Created approved AdmissionRequest for ${student.first_name} ${student.last_name} (linked with student ID: ${student.id})`);
       }
+    }
+
+    const legacySetting = await Setting.findOne({
+      where: { key: 'legacy_pending_students_migrated' },
+      transaction: txn
+    }).catch(() => null);
+
+    if (!legacySetting) {
+      await Setting.create({
+        key: 'legacy_pending_students_migrated',
+        value: 'true',
+      }, { transaction: txn }).catch(() => {});
     }
 
     await txn.commit();
@@ -532,6 +560,78 @@ async function migrateActiveSession() {
   }
 }
 
+async function migrateAdmissionRequestColumns() {
+  try {
+    const qi = sequelize.getQueryInterface();
+    const { DataTypes } = require('sequelize');
+
+    // 1. Describe and update admission_requests table
+    const admDesc = await qi.describeTable('admission_requests');
+    const admColsToAdd = [
+      { name: 'form_no',            type: DataTypes.STRING(40) },
+      { name: 'father_name',        type: DataTypes.STRING(100) },
+      { name: 'father_occupation',  type: DataTypes.STRING(100) },
+      { name: 'father_phone',       type: DataTypes.STRING(20) },
+      { name: 'father_whatsapp',    type: DataTypes.STRING(20) },
+      { name: 'mother_name',        type: DataTypes.STRING(100) },
+      { name: 'mother_occupation',  type: DataTypes.STRING(100) },
+      { name: 'mother_phone',       type: DataTypes.STRING(20) },
+      { name: 'mother_whatsapp',    type: DataTypes.STRING(20) },
+      { name: 'aadhar_number',      type: DataTypes.STRING(30) },
+      { name: 'passport_photo',     type: DataTypes.TEXT },
+      { name: 'residential_address',type: DataTypes.TEXT },
+      { name: 'post_office_tehsil', type: DataTypes.STRING(120) },
+      { name: 'district',           type: DataTypes.STRING(80) },
+      { name: 'pin_code',           type: DataTypes.STRING(15) },
+      { name: 'application_date',   type: DataTypes.DATEONLY },
+      { name: 'enquiry_mode',       type: DataTypes.STRING(50) },
+      { name: 'remarks',            type: DataTypes.TEXT },
+      { name: 'source',             type: DataTypes.STRING(40) },
+    ];
+
+    for (const col of admColsToAdd) {
+      if (!admDesc[col.name]) {
+        console.log(`[MIGRATOR] Adding column ${col.name} to admission_requests`);
+        await qi.addColumn('admission_requests', col.name, {
+          type: col.type,
+          allowNull: true,
+        });
+      }
+    }
+
+    // 2. Describe and update students table
+    const stuDesc = await qi.describeTable('students');
+    const stuColsToAdd = [
+      { name: 'father_occupation',  type: DataTypes.STRING(100) },
+      { name: 'mother_occupation',  type: DataTypes.STRING(100) },
+      { name: 'father_phone',       type: DataTypes.STRING(20) },
+      { name: 'father_whatsapp',    type: DataTypes.STRING(20) },
+      { name: 'mother_phone',       type: DataTypes.STRING(20) },
+      { name: 'mother_whatsapp',    type: DataTypes.STRING(20) },
+      { name: 'post_office_tehsil', type: DataTypes.STRING(120) },
+      { name: 'district',           type: DataTypes.STRING(80) },
+      { name: 'pin_code',           type: DataTypes.STRING(15) },
+      { name: 'previous_school',    type: DataTypes.STRING(150) },
+      { name: 'enquiry_mode',       type: DataTypes.STRING(50) },
+      { name: 'form_no',            type: DataTypes.STRING(40) },
+    ];
+
+    for (const col of stuColsToAdd) {
+      if (!stuDesc[col.name]) {
+        console.log(`[MIGRATOR] Adding column ${col.name} to students`);
+        await qi.addColumn('students', col.name, {
+          type: col.type,
+          allowNull: true,
+        });
+      }
+    }
+
+    console.log('[MIGRATOR] ✅ Admission request and student profile columns verified.');
+  } catch (err) {
+    console.error('[MIGRATOR] ❌ Admission column migration failed:', err.message);
+  }
+}
+
 module.exports = {
   migratePendingStudents,
   migrateFeeColumns,
@@ -540,4 +640,5 @@ module.exports = {
   migrateSessionAttendanceAndPromotionColumns,
   migrateStudentMarksheetColumns,
   migrateActiveSession,
+  migrateAdmissionRequestColumns,
 };

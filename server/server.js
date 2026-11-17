@@ -119,6 +119,7 @@ app.use(entitlementCheck);
 app.use('/api/central', require('./routes/central'));
 app.use('/api/central-billing', require('./routes/centralBilling'));
 app.use('/api/v1/connector', require('./routes/connector'));
+app.use('/api/public/admission', require('./routes/publicAdmission'));
 
 app.use('/api/class-subjects', classSubjectRoutes);
 app.use('/api/auth', require('./routes/auth'));
@@ -439,6 +440,7 @@ const onListening = () => {
           migrateSessionAttendanceAndPromotionColumns,
           migrateStudentMarksheetColumns,
           migrateActiveSession,
+          migrateAdmissionRequestColumns,
         } = require('./utils/dbMigrator');
         await migratePendingStudents();
         await migrateFeeColumns();
@@ -447,6 +449,7 @@ const onListening = () => {
         await migrateSessionAttendanceAndPromotionColumns();
         await migrateStudentMarksheetColumns();
         await migrateActiveSession();
+        await migrateAdmissionRequestColumns();
 
         // Auto-create default session if none exists (Hotfix for Hostinger setup)
         const { Session, User } = require('./models');

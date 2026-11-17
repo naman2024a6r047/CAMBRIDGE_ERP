@@ -20,10 +20,22 @@ const Student = sequelize.define('Student', {
   // Parent info
   parent_name:       DataTypes.STRING(100),
   parent_email:      DataTypes.STRING(150),
-  parent_phone:      DataTypes.STRING(15),
+  parent_phone:      DataTypes.STRING(20),
   parent_address:    DataTypes.TEXT,
   parent_occupation: DataTypes.STRING(100),
+  father_occupation: DataTypes.STRING(100),
   mother_name:       DataTypes.STRING(100),
+  mother_occupation: DataTypes.STRING(100),
+  father_phone:      DataTypes.STRING(20),
+  father_whatsapp:   DataTypes.STRING(20),
+  mother_phone:      DataTypes.STRING(20),
+  mother_whatsapp:   DataTypes.STRING(20),
+  post_office_tehsil:DataTypes.STRING(120),
+  district:          DataTypes.STRING(80),
+  pin_code:          DataTypes.STRING(15),
+  previous_school:   DataTypes.STRING(150),
+  enquiry_mode:      DataTypes.STRING(50),
+  form_no:           DataTypes.STRING(40),
 
   // Student Identity & Category
   category:          DataTypes.STRING(50),

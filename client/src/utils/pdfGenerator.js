@@ -1745,3 +1745,297 @@ export const generateComprehensivePerformanceReport = (student, detailData, sett
 
   doc.save(`Performance_Report_${stu.student_id || 'student'}_${stu.first_name || ''}_${stu.last_name || ''}.pdf`);
 };
+
+// ── Official Admission Form PDF (Identical to Paper Form) ──────────────────────
+export const generateAdmissionFormPDF = async (admission, settings = {}) => {
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const w = doc.internal.pageSize.width;  // 210
+  const h = doc.internal.pageSize.height; // 297
+
+  const schoolName = settings.school_name || 'INTERNATIONAL CAMBRIDGE SCHOOL KISHTWAR';
+  const schoolSub = settings.school_subtitle || 'Building Bright Futures';
+  const schoolAddress = settings.school_address || 'Ward No. 7, Shaheedi Mohallah, Kishtwar';
+  const logoUrl = settings.school_logo_url || settings.logo_url || '';
+  const logoBase64 = await loadLogoBase64(logoUrl);
+
+  const photoBase64 = admission.passport_photo ? await loadPhotoBase64(admission.passport_photo) : null;
+
+  // Outer Border
+  doc.setDrawColor(30, 58, 138); // Navy blue
+  doc.setLineWidth(0.8);
+  doc.rect(7, 7, w - 14, h - 14);
+  doc.setDrawColor(219, 234, 254);
+  doc.setLineWidth(0.3);
+  doc.rect(8, 8, w - 16, h - 16);
+
+  // 1. Header Area
+  let y = 14;
+
+  // Logo
+  if (logoBase64) {
+    try {
+      doc.addImage(logoBase64, 'PNG', 12, y - 2, 22, 22);
+    } catch {
+      drawOfficialSeal(doc, 23, y + 9, 10, '2024');
+    }
+  } else {
+    drawOfficialSeal(doc, 23, y + 9, 10, '2024');
+  }
+
+  // School Titles
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(16);
+  doc.setTextColor(24, 43, 73); // Deep Cambridge Navy
+  doc.text(schoolName, w / 2 + 5, y + 3, { align: 'center' });
+
+  doc.setFont('helvetica', 'oblique');
+  doc.setFontSize(10);
+  doc.setTextColor(71, 85, 105);
+  doc.text(schoolSub, w / 2 + 5, y + 8, { align: 'center' });
+
+  // Top-Right Motto Box
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.5);
+  doc.setTextColor(194, 65, 12);
+  doc.text('Quality Education', w - 13, y + 1, { align: 'right' });
+  doc.text('for a Brighter', w - 13, y + 5, { align: 'right' });
+  doc.text('Tomorrow', w - 13, y + 9, { align: 'right' });
+
+  // Admission Form Banner Pill
+  y += 13;
+  doc.setFillColor(30, 58, 138);
+  doc.roundedRect(w / 2 - 55, y, 110, 8.5, 3, 3, 'F');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(12);
+  doc.setTextColor(255, 255, 255);
+  doc.text('ADMISSION FORM', w / 2, y + 5.5, { align: 'center' });
+
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'normal');
+  doc.text('(Nursery - Class 8th)', w / 2, y + 12.5, { align: 'center' });
+
+  // 4 Feature Badges
+  y += 15;
+  const badges = [
+    { label: 'Quality Education', icon: '★' },
+    { label: 'Holistic Development', icon: '🎓' },
+    { label: 'Safe & Supportive', icon: '🛡️' },
+    { label: 'Bright Future', icon: '🌟' }
+  ];
+  const bW = 42;
+  const bGap = 4;
+  const bStartX = (w - (4 * bW + 3 * bGap)) / 2;
+  badges.forEach((b, idx) => {
+    const bx = bStartX + idx * (bW + bGap);
+    doc.setFillColor(241, 245, 249);
+    doc.setDrawColor(203, 213, 225);
+    doc.roundedRect(bx, y, bW, 6, 1.5, 1.5, 'FD');
+    doc.setFontSize(6.8);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(51, 65, 85);
+    doc.text(b.label, bx + bW / 2, y + 4.2, { align: 'center' });
+  });
+
+  y += 9;
+
+  // Helper for Section Headers
+  const drawSectionHeader = (title, colorHex, posY) => {
+    doc.setFillColor(...colorHex);
+    doc.roundedRect(11, posY, w - 22, 6.5, 1.5, 1.5, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8.5);
+    doc.setTextColor(255, 255, 255);
+    doc.text(title, 14, posY + 4.6);
+  };
+
+  // Helper for Field Drawing
+  const drawField = (label, val, x, fY, lineW = 60) => {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.5);
+    doc.setTextColor(51, 65, 85);
+    doc.text(`${label} :`, x, fY);
+    const labelW = doc.getTextWidth(`${label} : `);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(15, 23, 42);
+    const displayVal = val || '—';
+    doc.text(String(displayVal), x + labelW, fY);
+
+    doc.setDrawColor(203, 213, 225);
+    doc.setLineWidth(0.2);
+    doc.line(x + labelW, fY + 1.2, x + labelW + lineW, fY + 1.2);
+  };
+
+  // ── SECTION 1: STUDENT DETAILS (Blue Header) ───────────────────────────────
+  drawSectionHeader('1. STUDENT DETAILS', [29, 78, 216], y);
+  y += 10;
+
+  const stuName = `${admission.first_name || ''} ${admission.last_name === '.' ? '' : (admission.last_name || '')}`.trim();
+  drawField('Name of Student', stuName, 13, y, 95);
+
+  // Passport Photo Box (Top Right)
+  const photoBoxX = w - 46;
+  const photoBoxY = y - 4;
+  const photoBoxW = 33;
+  const photoBoxH = 40;
+
+  doc.setDrawColor(148, 163, 184);
+  doc.setLineWidth(0.5);
+  doc.rect(photoBoxX, photoBoxY, photoBoxW, photoBoxH);
+
+  if (photoBase64) {
+    try {
+      doc.addImage(photoBase64, 'JPEG', photoBoxX + 1, photoBoxY + 1, photoBoxW - 2, photoBoxH - 2);
+    } catch {
+      doc.setFontSize(6.5);
+      doc.setTextColor(100, 116, 139);
+      doc.text('Recent Photograph', photoBoxX + photoBoxW / 2, photoBoxY + 18, { align: 'center' });
+      doc.text('(3.5 x 4.5 cm)', photoBoxX + photoBoxW / 2, photoBoxY + 23, { align: 'center' });
+    }
+  } else {
+    doc.setFillColor(248, 250, 252);
+    doc.rect(photoBoxX + 0.5, photoBoxY + 0.5, photoBoxW - 1, photoBoxH - 1, 'F');
+    doc.setFontSize(6.5);
+    doc.setTextColor(148, 163, 184);
+    doc.text('Paste Passport Size', photoBoxX + photoBoxW / 2, photoBoxY + 16, { align: 'center' });
+    doc.text('Photograph (Recent)', photoBoxX + photoBoxW / 2, photoBoxY + 21, { align: 'center' });
+    doc.text('(3.5 cm x 4.5 cm)', photoBoxX + photoBoxW / 2, photoBoxY + 26, { align: 'center' });
+  }
+
+  y += 8;
+  drawField('Date of Birth', admission.date_of_birth ? formatDate(admission.date_of_birth) : '—', 13, y, 40);
+  drawField('Gender', admission.gender || '—', 75, y, 32);
+
+  y += 8;
+  drawField('Class Applying For', admission.applying_class || '—', 13, y, 95);
+
+  y += 8;
+  drawField('Previous School (if any)', admission.previous_school || 'N/A', 13, y, 95);
+
+  y += 8;
+  drawField('Aadhaar No. (if available)', admission.aadhar_number || 'N/A', 13, y, 95);
+
+  y += 12;
+
+  // ── SECTION 2: PARENTAGE DETAILS (Pink/Rose Header) ────────────────────────
+  drawSectionHeader('2. PARENTAGE DETAILS', [225, 29, 72], y);
+  y += 9;
+
+  drawField("Father's Name", admission.father_name || admission.parent_name || '—', 13, y, 62);
+  drawField("Father's Occupation", admission.father_occupation || '—', 105, y, 68);
+
+  y += 7.5;
+  drawField("Father's Phone No.", admission.father_phone || admission.parent_phone || '—', 13, y, 62);
+  drawField("Father's WhatsApp", admission.father_whatsapp || admission.father_phone || '—', 105, y, 68);
+
+  y += 7.5;
+  drawField("Mother's Name", admission.mother_name || '—', 13, y, 62);
+  drawField("Mother's Occupation", admission.mother_occupation || '—', 105, y, 68);
+
+  y += 7.5;
+  drawField("Mother's Phone No.", admission.mother_phone || '—', 13, y, 62);
+  drawField("Mother's WhatsApp", admission.mother_whatsapp || admission.mother_phone || '—', 105, y, 68);
+
+  y += 7.5;
+  drawField("Email Address", admission.parent_email || '—', 13, y, 160);
+
+  y += 11;
+
+  // ── SECTION 3: ADDRESS DETAILS (Teal Header) ────────────────────────────────
+  drawSectionHeader('3. ADDRESS DETAILS', [13, 148, 136], y);
+  y += 9;
+
+  drawField('Residential Address', admission.residential_address || admission.parent_address || '—', 13, y, 160);
+
+  y += 7.5;
+  drawField('Post Office / Tehsil', admission.post_office_tehsil || '—', 13, y, 65);
+  drawField('District', admission.district || 'Kishtwar', 105, y, 68);
+
+  y += 7.5;
+  drawField('Pin Code', admission.pin_code || '182205', 13, y, 65);
+
+  y += 11;
+
+  // ── SECTION 4: OTHER DETAILS (Indigo Header) ────────────────────────────────
+  drawSectionHeader('4. OTHER DETAILS', [79, 70, 229], y);
+  y += 9;
+
+  drawField('Date of Application', formatDate(admission.application_date || admission.created_at || new Date()), 13, y, 65);
+  drawField('Mode of Enquiry', admission.enquiry_mode || 'Online Portal', 105, y, 68);
+
+  y += 7.5;
+  drawField('Remarks (if any)', admission.remarks || 'None', 13, y, 160);
+
+  y += 12;
+
+  // ── Bottom Boxes: Documents Required & For Office Use Only ─────────────────
+  const boxW = 89;
+  const boxH = 34;
+
+  // Left Box: Documents Required
+  doc.setFillColor(254, 252, 232); // soft amber
+  doc.setDrawColor(251, 191, 36);
+  doc.roundedRect(11, y, boxW, boxH, 2, 2, 'FD');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.5);
+  doc.setTextColor(180, 83, 9);
+  doc.text('Documents Required (at the time of admission)', 14, y + 5);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(6.8);
+  doc.setTextColor(71, 85, 105);
+  const docList = [
+    '✓ Birth Certificate (Age Proof)',
+    '✓ Passport Size Photographs (2)',
+    '✓ Previous School Report (if any)',
+    '✓ Aadhaar Card (Student & Parents)',
+    '✓ Address Proof'
+  ];
+  docList.forEach((dItem, dIdx) => {
+    doc.text(dItem, 15, y + 10 + dIdx * 4.6);
+  });
+
+  // Right Box: For Office Use Only
+  const ofX = 107;
+  doc.setFillColor(248, 250, 252);
+  doc.setDrawColor(148, 163, 184);
+  doc.roundedRect(ofX, y, boxW + 4, boxH, 2, 2, 'FD');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.5);
+  doc.setTextColor(30, 41, 59);
+  doc.text('For Office Use Only', ofX + 4, y + 5);
+
+  const formNumber = admission.form_no || 'ICS-2026-XXXX';
+  const admNumber = admission.student_id_created ? `STU-${admission.student_id_created}` : 'PENDING';
+  const admDate = admission.approved_at ? formatDate(admission.approved_at) : '—';
+
+  drawField('Form No.', formNumber, ofX + 4, y + 11, 45);
+  drawField('Admission No.', admNumber, ofX + 4, y + 17, 45);
+  drawField('Date of Admission', admDate, ofX + 4, y + 23, 45);
+
+  doc.setFontSize(6.5);
+  doc.setFont('helvetica', 'italic');
+  doc.setTextColor(100, 116, 139);
+  doc.text('Signature (Receiving Officer): ___________________', ofX + 4, y + 30);
+
+  // ── BOTTOM BANNER STRIP ───────────────────────────────────────────────────
+  const bannerY = h - 18;
+  doc.setFillColor(15, 23, 42); // slate-900
+  doc.rect(7, bannerY, w - 14, 11, 'F');
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7);
+  doc.setTextColor(255, 255, 255);
+  doc.text(`📍 ${schoolAddress}`, 12, bannerY + 4.5);
+  doc.text('📞 Dr Arshad Kichloo: 7780959880   |   Mr Sumit Kumar: 9797520072', w - 12, bannerY + 4.5, { align: 'right' });
+
+  doc.setFont('helvetica', 'oblique');
+  doc.setFontSize(7);
+  doc.setTextColor(253, 224, 71); // Gold yellow
+  doc.text('Your Child\'s Bright Future, Our Priority', w / 2, bannerY + 8.5, { align: 'center' });
+
+  doc.save(`Admission_Form_${admission.form_no || 'ICS'}_${stuName.replace(/\s+/g, '_')}.pdf`);
+};
