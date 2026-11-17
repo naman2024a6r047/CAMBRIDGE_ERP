@@ -215,15 +215,26 @@ Nursery ➔ LKG ➔ UKG ➔ Class 1 ➔ Class 2 ➔ Class 3 ➔ Class 4 ➔ Clas
 
 ---
 
-### 8. Targeted Notifications & School Announcements
+### 8. Targeted Notifications & Universal Clickable ERP Redirection
 
 - **Audience-Targeted Messaging**:
   - Announcements can be sent to **Entire School (Broadcast)**, **Teachers Only**, or **Students & Parents Only**.
 - **Class & Section Granularity**:
-  - Student notifications can be targeted specifically to a designated class (e.g., `Class 8 - Section A`).
+  - Student notifications can be targeted specifically to a designated class and section (e.g., `Class 8th - Section A` or `All Sections`).
 - **Structured Categories & Priorities**:
-  - Subcategories: `Academics`, `Examinations`, `Fees & Accounts`, `Holidays`, `Sports & Events`, `Administrative`, and `Urgent Alerts`.
-  - Priority levels: `Low`, `Normal`, `High`, `Urgent` (with visual badge styling).
+  - Subcategories: `Academics`, `Examinations & Datesheets`, `Fees & Accounts`, `Attendance Alerts`, `Holidays`, `Sports & Events`, `Administrative`, and `Urgent Alerts`.
+  - Priority levels: `Normal`, `High`, `Urgent` (with visual badge styling and pulse animations).
+- **Universal Clickable Notifications**:
+  - **Global TopBar Bell Popover**: Mounted on all portals (`/admin`, `/admin2`, `/teacher`, `/parent`, `/fc`) displaying live unread badges, instant notification previews, and "Mark all as read" capability.
+  - **Notification Detail Modal**: Clicking any notification across the entire ERP opens a sleek modal detailing the sender, timestamp, priority, audience scope, subcategory, and full notice contents.
+  - **Context-Aware One-Click Redirection**: The primary CTA button automatically marks the notice as read and redirects the user directly to the relevant part of the ERP based on the user's role:
+    - *Exam Datesheets* ➔ `/parent/exams` (Parents/Students), `/admin/datesheets` (Admin), `/teacher/datesheet` (Teachers).
+    - *Fee Reminders & Dues* ➔ `/parent/fees` (Parents/Students), `/admin/fees` (Admin), `/fc/collect` (Fee Collectors).
+    - *Attendance Alerts* ➔ `/parent/attendance` (Parents/Students), `/admin/attendance` (Admin), `/teacher/attendance` (Teachers).
+    - *Exam Results & Marksheets* ➔ `/parent/report-card` (Parents/Students), `/admin/student-performance` (Admin), `/teacher/marks` (Teachers).
+    - *Admissions* ➔ `/admin/admissions` (Admin), `/fc/admissions` (Fee Collectors), `/admission` (Parents/Public).
+    - *Timetable Schedules* ➔ `/parent/timetable` (Parents/Students), `/admin/timetable` (Admin), `/teacher/timetable` (Teachers).
+  - **Interactive Dashboard Widgets**: Dashboard notice boards on Admin, Parent, and Teacher portals are fully clickable, enabling 1-click inspection and seamless module navigation.
 
 ---
 

@@ -51,6 +51,14 @@ const Notification = sequelize.define('Notification', {
     type: DataTypes.STRING(20),
     defaultValue: 'normal'
   },
+  link: {
+    type: DataTypes.STRING(255),
+    allowNull: true
+  },
+  user_id: {
+    type: DataTypes.INTEGER,
+    allowNull: true
+  },
 
   is_active: { type: DataTypes.BOOLEAN, defaultValue: true }
 }, { 

@@ -1,9 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useLocation, useNavigate } from 'react-router-dom';
 import API from '../../utils/api';
 import toast from 'react-hot-toast';
 import SendMessageModal from '../forms/SendMessageModal';
+import NotificationDetailModal from './NotificationDetailModal';
+import { formatDate } from '../../utils/helpers';
 
 // Breadcrumbs helper mapping
 const routeBreadcrumbs = {
@@ -47,6 +49,18 @@ const routeBreadcrumbs = {
   '/teacher/profile': ['Dashboard', 'My Profile'],
 };
 
+const NOTIF_ICONS = {
+  exam_datesheet:   '📅',
+  result:           '📊',
+  fee_reminder:     '💳',
+  attendance_alert: '⏰',
+  holiday:          '🌴',
+  academic:         '📚',
+  achievement:      '🏆',
+  emergency:        '🚨',
+  general:          '📢',
+};
+
 export default function TopBar({ title, onMenuClick }) {
   const { user } = useAuth();
   const location = useLocation();
@@ -56,6 +70,13 @@ export default function TopBar({ title, onMenuClick }) {
   const [selectedSessionId, setSelectedSessionId] = useState('');
   const [loadingSessions, setLoadingSessions] = useState(true);
   const [isMessageModalOpen, setIsMessageModalOpen] = useState(false);
+
+  // Notification popup and modal state
+  const [notifsList, setNotifsList] = useState([]);
+  const [unreadNotifsCount, setUnreadNotifsCount] = useState(0);
+  const [isNotifDropdownOpen, setIsNotifDropdownOpen] = useState(false);
+  const [selectedNotifForModal, setSelectedNotifForModal] = useState(null);
+  const notifDropdownRef = useRef(null);
 
   useEffect(() => {
     const fetchSessionData = async () => {
@@ -91,6 +112,33 @@ export default function TopBar({ title, onMenuClick }) {
     }
   }, [user]);
 
+  const fetchNotifs = async () => {
+    try {
+      const r = await API.get('/notifications');
+      const data = Array.isArray(r.data) ? r.data : [];
+      setNotifsList(data);
+      const unread = data.filter(n => !n.is_read).length;
+      setUnreadNotifsCount(unread);
+    } catch (e) {
+      // non-blocking
+    }
+  };
+
+  useEffect(() => {
+    fetchNotifs();
+  }, [location.pathname]);
+
+  // Click outside to close notification dropdown
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (notifDropdownRef.current && !notifDropdownRef.current.contains(event.target)) {
+        setIsNotifDropdownOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   const handleSessionChange = async (e) => {
     const sessionId = e.target.value;
     setSelectedSessionId(sessionId);
@@ -114,16 +162,32 @@ export default function TopBar({ title, onMenuClick }) {
       }
     }
   };
-  const [unreadNotifsCount, setUnreadNotifsCount] = useState(0);
 
-  useEffect(() => {
-    API.get('/notifications')
-      .then(r => {
-        const unread = r.data.filter(n => !n.is_read).length;
-        setUnreadNotifsCount(unread);
-      })
-      .catch(() => {});
-  }, [location.pathname]);
+  const handleToggleNotifDropdown = () => {
+    setIsNotifDropdownOpen(prev => {
+      if (!prev) fetchNotifs();
+      return !prev;
+    });
+  };
+
+  const handleOpenDetailModal = (notif) => {
+    setSelectedNotifForModal(notif);
+    setIsNotifDropdownOpen(false);
+  };
+
+  const handleMarkAllRead = async () => {
+    const unreadItems = notifsList.filter(n => !n.is_read);
+    if (unreadItems.length === 0) return;
+    await Promise.all(unreadItems.map(n => API.post(`/notifications/${n.id}/read`).catch(() => {})));
+    setNotifsList(prev => prev.map(n => ({ ...n, is_read: true })));
+    setUnreadNotifsCount(0);
+    toast.success('All notifications marked as read.');
+  };
+
+  const handleNotifMarkedRead = (id) => {
+    setNotifsList(prev => prev.map(n => n.id === id ? { ...n, is_read: true } : n));
+    setUnreadNotifsCount(prev => Math.max(0, prev - 1));
+  };
 
   const breadcrumb = routeBreadcrumbs[location.pathname] || ['Portal', title];
   // Fallbacks for display
@@ -159,15 +223,15 @@ export default function TopBar({ title, onMenuClick }) {
             <svg className="w-3 h-3 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
             </svg>
-            <span className="text-blue-500 font-bold">{breadcrumb[1]}</span>
+            <span className="text-slate-600 font-bold">{breadcrumb[1]}</span>
           </div>
         </div>
       </div>
 
-      {/* Global Actions Controls */}
-      <div className="flex items-center gap-2 sm:gap-4 lg:gap-6 flex-shrink-0">
+      {/* Right Actions */}
+      <div className="flex items-center gap-2 sm:gap-4">
         
-        {/* Academic Session Picker */}
+        {/* Academic Session Selector */}
         <div className="relative hidden sm:flex items-center">
           <svg className="w-4 h-4 text-slate-400 absolute left-3.5 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
@@ -207,21 +271,122 @@ export default function TopBar({ title, onMenuClick }) {
             </svg>
           </button>
 
-          {/* Notifications Bell */}
-          <button 
-            onClick={() => navigate(`${profileBasePath}/notifications`)}
-            className="p-2 sm:p-2.5 rounded-xl text-slate-500 hover:text-slate-700 hover:bg-slate-50 border border-transparent hover:border-slate-100 transition-all relative"
-            title="View Notifications"
-          >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-            </svg>
-            {unreadNotifsCount > 0 && (
-              <span className="absolute top-1.5 right-1.5 w-4 h-4 bg-red-500 text-[9px] font-bold text-white flex items-center justify-center rounded-full ring-2 ring-white animate-pulse">
-                {unreadNotifsCount}
-              </span>
+          {/* Notifications Bell with Interactive Dropdown Popover */}
+          <div className="relative" ref={notifDropdownRef}>
+            <button 
+              onClick={handleToggleNotifDropdown}
+              className={`p-2 sm:p-2.5 rounded-xl transition-all relative ${
+                isNotifDropdownOpen
+                  ? 'bg-blue-50 text-blue-600 border border-blue-200'
+                  : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50 border border-transparent hover:border-slate-100'
+              }`}
+              title="View Notifications"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+              </svg>
+              {unreadNotifsCount > 0 && (
+                <span className="absolute top-1.5 right-1.5 w-4 h-4 bg-red-500 text-[9px] font-bold text-white flex items-center justify-center rounded-full ring-2 ring-white animate-pulse">
+                  {unreadNotifsCount > 9 ? '9+' : unreadNotifsCount}
+                </span>
+              )}
+            </button>
+
+            {/* Notification Dropdown Popover */}
+            {isNotifDropdownOpen && (
+              <div className="absolute right-0 top-full mt-2 w-80 sm:w-96 bg-white rounded-2xl shadow-2xl border border-slate-100 z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150">
+                {/* Popover Header */}
+                <div className="p-3.5 bg-slate-50/90 border-b border-slate-100 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-extrabold text-slate-800">Notifications</span>
+                    {unreadNotifsCount > 0 ? (
+                      <span className="text-[10px] bg-red-100 text-red-700 font-bold px-2 py-0.5 rounded-full">
+                        {unreadNotifsCount} new
+                      </span>
+                    ) : (
+                      <span className="text-[10px] bg-emerald-100 text-emerald-700 font-bold px-2 py-0.5 rounded-full">
+                        All read
+                      </span>
+                    )}
+                  </div>
+                  {unreadNotifsCount > 0 && (
+                    <button
+                      type="button"
+                      onClick={handleMarkAllRead}
+                      className="text-[11px] font-bold text-blue-600 hover:text-blue-800 hover:underline"
+                    >
+                      Mark all as read
+                    </button>
+                  )}
+                </div>
+
+                {/* Popover List */}
+                <div className="max-h-80 overflow-y-auto divide-y divide-slate-50">
+                  {notifsList.length === 0 ? (
+                    <div className="p-8 text-center text-slate-400 space-y-1">
+                      <span className="text-2xl block">📭</span>
+                      <p className="text-xs">No notifications yet.</p>
+                    </div>
+                  ) : (
+                    notifsList.slice(0, 7).map((n) => {
+                      const icon = NOTIF_ICONS[n.type] || '📢';
+                      const isUrgent = n.priority === 'urgent';
+                      return (
+                        <div
+                          key={n.id}
+                          onClick={() => handleOpenDetailModal(n)}
+                          className={`p-3.5 flex items-start gap-3 transition-colors cursor-pointer group ${
+                            !n.is_read
+                              ? 'bg-blue-50/40 hover:bg-blue-50/70'
+                              : 'hover:bg-slate-50'
+                          }`}
+                        >
+                          <span className="text-lg flex-shrink-0 mt-0.5">{icon}</span>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between gap-1 mb-0.5">
+                              <h4 className={`text-xs font-bold truncate ${!n.is_read ? 'text-slate-900 font-extrabold' : 'text-slate-700'}`}>
+                                {n.title}
+                              </h4>
+                              {!n.is_read && (
+                                <span className="w-2 h-2 rounded-full bg-blue-600 flex-shrink-0" />
+                              )}
+                            </div>
+                            <p className="text-[11px] text-slate-500 line-clamp-2 leading-relaxed font-normal">
+                              {n.message}
+                            </p>
+                            <div className="flex items-center justify-between text-[10px] text-slate-400 mt-1">
+                              {n.sub_category ? (
+                                <span className="text-blue-600 font-semibold">🏷️ {n.sub_category}</span>
+                              ) : (
+                                <span>{n.type?.replace('_', ' ')}</span>
+                              )}
+                              <span>{formatDate(n.created_at || n.createdAt)}</span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+
+                {/* Popover Footer */}
+                <div className="p-2.5 bg-slate-50/80 border-t border-slate-100 flex items-center justify-between text-xs">
+                  <span className="text-[11px] text-slate-400 pl-2">Click to open & jump to section</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsNotifDropdownOpen(false);
+                      navigate(`${profileBasePath}/notifications`);
+                    }}
+                    className="px-3 py-1.5 rounded-lg bg-blue-600 text-white font-bold text-[11px] hover:bg-blue-700 transition-colors flex items-center gap-1"
+                  >
+                    <span>View Archive</span>
+                    <span>➔</span>
+                  </button>
+                </div>
+              </div>
             )}
-          </button>
+          </div>
         </div>
 
         {/* User Account Info Dropdown */}
@@ -253,6 +418,15 @@ export default function TopBar({ title, onMenuClick }) {
       {isMessageModalOpen && (
         <SendMessageModal onClose={() => setIsMessageModalOpen(false)} />
       )}
+
+      {/* Global Notification Detail Modal */}
+      <NotificationDetailModal
+        isOpen={!!selectedNotifForModal}
+        notification={selectedNotifForModal}
+        onClose={() => setSelectedNotifForModal(null)}
+        onMarkRead={handleNotifMarkedRead}
+        userRole={user?.role}
+      />
     </header>
   );
 }

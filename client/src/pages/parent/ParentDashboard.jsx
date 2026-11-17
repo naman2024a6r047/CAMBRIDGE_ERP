@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import API from '../../utils/api';
 import { useAuth } from '../../context/AuthContext';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
+import NotificationDetailModal from '../../components/common/NotificationDetailModal';
 import {
   DAYS,
   DEFAULT_SCHEDULE_CONFIG,
@@ -44,6 +45,7 @@ export default function ParentDashboard() {
   const [fees, setFees] = useState([]);
   const [results, setResults] = useState([]);
   const [notifications, setNotifications] = useState([]);
+  const [selectedNotif, setSelectedNotif] = useState(null);
   const [events, setEvents] = useState([]);
   const [examData, setExamData] = useState({ datesheets: [], upcomingEntries: [] });
   const [timetableSlots, setTimetableSlots] = useState([]);
@@ -655,9 +657,16 @@ export default function ParentDashboard() {
             ) : (
               <div className="space-y-3">
                 {notifications.slice(0, 4).map((n) => (
-                  <div key={n.id} className="p-3 rounded-2xl bg-slate-50 border border-slate-100">
-                    <p className="text-xs font-bold text-slate-800">{n.title}</p>
-                    <p className="text-[11px] text-slate-500 mt-1 line-clamp-2">{n.message}</p>
+                  <div
+                    key={n.id}
+                    onClick={() => setSelectedNotif(n)}
+                    className="p-3.5 rounded-2xl bg-slate-50 hover:bg-slate-100/80 border border-slate-100 transition-all cursor-pointer group active:scale-[0.99]"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-xs font-bold text-slate-800 group-hover:text-indigo-600 transition-colors truncate">{n.title}</p>
+                      <span className="text-[10px] text-indigo-500 font-bold opacity-0 group-hover:opacity-100 transition-opacity">View ➔</span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 mt-1 line-clamp-2 leading-relaxed">{n.message}</p>
                   </div>
                 ))}
               </div>
@@ -683,6 +692,14 @@ export default function ParentDashboard() {
           </div>
         </div>
       </div>
+
+      {/* Global Notification Detail Modal */}
+      <NotificationDetailModal
+        isOpen={!!selectedNotif}
+        notification={selectedNotif}
+        onClose={() => setSelectedNotif(null)}
+        userRole={user?.role}
+      />
     </div>
   );
 }

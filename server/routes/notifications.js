@@ -313,6 +313,8 @@ router.post('/', protect, hasPermission('SEND_NOTIFICATIONS'), async (req, res) 
       target_subject,
       sub_category,
       priority = 'normal',
+      link,
+      user_id,
     } = req.body;
 
     if (!title || !title.trim() || !message || !message.trim()) {
@@ -350,6 +352,8 @@ router.post('/', protect, hasPermission('SEND_NOTIFICATIONS'), async (req, res) 
       target_subject:    target_subject && target_subject !== 'all' ? target_subject : null,
       sub_category:      sub_category ? sub_category.trim() : 'General',
       priority:          ['normal', 'high', 'urgent'].includes(priority) ? priority : 'normal',
+      link:              link ? link.trim() : null,
+      user_id:           user_id || (recipient_type === 'individual' ? recipient_user_id : null),
       sent_by:           req.user.id,
     });
 

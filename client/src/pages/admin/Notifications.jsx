@@ -5,6 +5,8 @@ import { can } from '../../utils/roleUtils';
 import { formatDate } from '../../utils/helpers';
 import { CLASSES, SECTIONS, SUBJECTS } from '../../constants/roles';
 import toast from 'react-hot-toast';
+import NotificationDetailModal from '../../components/common/NotificationDetailModal';
+import { getNotificationDestination } from '../../utils/notificationNavigation';
 
 const NOTIF_TYPES = [
   { value: 'general',          label: 'General Notice',         icon: 'ℹ️', badge: 'bg-gray-100 text-gray-700 border-gray-200' },
@@ -49,6 +51,7 @@ export default function Notifications() {
   const [notifs, setNotifs]           = useState([]);
   const [loading, setLoading]         = useState(true);
   const [sending, setSending]         = useState(false);
+  const [selectedNotif, setSelectedNotif] = useState(null);
 
   // Audience State: 'all' | 'teachers' | 'students' | 'individual'
   const [audience, setAudience]       = useState('all');
@@ -583,10 +586,13 @@ export default function Notifications() {
                   audienceBg = 'bg-emerald-100 text-emerald-800 font-semibold';
                 }
 
+                const dest = getNotificationDestination(n, user?.role);
+
                 return (
                   <div
                     key={n.id}
-                    className={`p-4 transition-colors hover:bg-gray-50 flex gap-3 ${
+                    onClick={() => setSelectedNotif(n)}
+                    className={`p-4 transition-all hover:bg-gray-50 flex gap-3 cursor-pointer group active:scale-[0.99] ${
                       isUrgent ? 'bg-red-50/40 border-l-4 border-red-500' : isHigh ? 'border-l-4 border-amber-400' : ''
                     }`}
                   >
@@ -594,7 +600,7 @@ export default function Notifications() {
 
                     <div className="flex-1 min-w-0 space-y-1">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-bold text-sm text-gray-900">{n.title}</span>
+                        <span className="font-bold text-sm text-gray-900 group-hover:text-blue-600 transition-colors">{n.title}</span>
 
                         {/* Audience badge */}
                         <span className={`text-[10px] px-2 py-0.5 rounded-full ${audienceBg}`}>
@@ -626,16 +632,27 @@ export default function Notifications() {
 
                       <p className="text-xs text-gray-600 leading-relaxed whitespace-pre-wrap">{n.message}</p>
 
-                      <div className="flex items-center justify-between pt-1 text-[11px] text-gray-400">
+                      <div className="flex items-center justify-between pt-2 text-[11px] text-gray-400 border-t border-gray-50 mt-1">
                         <span>Dispatched by: <strong className="text-gray-600">{n.sender?.name || 'Administrator'}</strong></span>
-                        {canSend && (
-                          <button
-                            onClick={() => handleDelete(n.id)}
-                            className="text-gray-400 hover:text-red-500 transition-colors font-medium hover:underline text-[11px]"
-                          >
-                            Delete Notice
-                          </button>
-                        )}
+                        <div className="flex items-center gap-3">
+                          {dest?.url && (
+                            <span className="text-[11px] font-bold text-blue-600 group-hover:underline flex items-center gap-1">
+                              <span>{dest.label}</span>
+                              <span>➔</span>
+                            </span>
+                          )}
+                          {canSend && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDelete(n.id);
+                              }}
+                              className="text-gray-400 hover:text-red-500 transition-colors font-medium hover:underline text-[11px]"
+                            >
+                              Delete Notice
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -645,6 +662,14 @@ export default function Notifications() {
           </div>
         </div>
       </div>
+
+      {/* Notification Detail Modal */}
+      <NotificationDetailModal
+        isOpen={!!selectedNotif}
+        notification={selectedNotif}
+        onClose={() => setSelectedNotif(null)}
+        userRole={user?.role}
+      />
     </div>
   );
 }

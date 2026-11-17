@@ -6,6 +6,7 @@ import API from '../../utils/api';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
 import { getTimeBasedGreeting } from '../../utils/helpers';
+import NotificationDetailModal from '../../components/common/NotificationDetailModal';
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -20,6 +21,7 @@ export default function Dashboard() {
 
   const [students, setStudents] = useState([]);
   const [notifs, setNotifs] = useState([]);
+  const [selectedNotif, setSelectedNotif] = useState(null);
   const [stats, setStats] = useState({});
   const [sparklines, setSparklines] = useState({});
   const [loading, setLoading] = useState(true);
@@ -722,14 +724,18 @@ export default function Dashboard() {
                   bg = 'bg-blue-50 text-blue-600';
                 }
                 return (
-                  <div key={item.id} className="flex gap-3 px-1 py-1 hover:bg-slate-50/50 rounded-xl transition-colors">
-                    <div className={`w-8 h-8 rounded-xl ${bg} flex items-center justify-center text-lg font-bold flex-shrink-0 mt-0.5`}>{icon}</div>
+                  <div
+                    key={item.id}
+                    onClick={() => setSelectedNotif(item)}
+                    className="flex gap-3 px-2 py-2 hover:bg-slate-50/80 rounded-2xl transition-all cursor-pointer group active:scale-[0.99] border border-transparent hover:border-slate-100"
+                  >
+                    <div className={`w-8 h-8 rounded-xl ${bg} flex items-center justify-center text-lg font-bold flex-shrink-0 mt-0.5 shadow-xs`}>{icon}</div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2">
-                        <h4 className="text-xs font-extrabold text-slate-800 truncate">{item.title}</h4>
+                        <h4 className="text-xs font-extrabold text-slate-800 truncate group-hover:text-blue-600 transition-colors">{item.title}</h4>
                         <span className="text-[9px] font-bold text-slate-400 flex-shrink-0">{dateStr}</span>
                       </div>
-                      <p className="text-[10px] font-bold text-slate-500 mt-1 leading-normal">{item.message}</p>
+                      <p className="text-[10px] font-medium text-slate-500 mt-1 leading-normal line-clamp-2">{item.message}</p>
                     </div>
                   </div>
                 );
@@ -914,6 +920,13 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {/* Global Notification Detail Modal */}
+      <NotificationDetailModal
+        isOpen={!!selectedNotif}
+        notification={selectedNotif}
+        onClose={() => setSelectedNotif(null)}
+        userRole={user?.role}
+      />
     </div>
   );
 }

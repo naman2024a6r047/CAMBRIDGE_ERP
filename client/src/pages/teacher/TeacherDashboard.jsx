@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
 import API from '../../utils/api';
 import StatCard from '../../components/common/StatCard';
+import NotificationDetailModal from '../../components/common/NotificationDetailModal';
 
 export default function TeacherDashboard() {
   const { user }   = useAuth();
@@ -13,6 +14,7 @@ export default function TeacherDashboard() {
   const isTeacher  = staffType === 'Teacher';
 
   const [loading, setLoading] = useState(true);
+  const [selectedNotif, setSelectedNotif] = useState(null);
   const [data, setData] = useState({
     stats: {
       assigned_classes: 0,
@@ -222,17 +224,22 @@ export default function TeacherDashboard() {
                 <p className="text-xs text-gray-400 text-center py-4">No recent notices found.</p>
               ) : (
                 data.announcements.map((notif, index) => (
-                  <div key={index} className="space-y-1.5 py-1">
+                  <div
+                    key={index}
+                    onClick={() => setSelectedNotif(notif)}
+                    className="space-y-1.5 py-2 px-2 hover:bg-slate-50/80 rounded-xl transition-all cursor-pointer group active:scale-[0.99]"
+                  >
                     <div className="flex items-center justify-between gap-2">
-                      <h4 className="text-xs font-bold text-gray-800 line-clamp-1">{notif.title}</h4>
-                      <span className="text-[9px] px-2 py-0.5 rounded-full font-bold uppercase bg-indigo-50 text-indigo-700 tracking-wider">
+                      <h4 className="text-xs font-bold text-gray-800 line-clamp-1 group-hover:text-indigo-600 transition-colors">{notif.title}</h4>
+                      <span className="text-[9px] px-2 py-0.5 rounded-full font-bold uppercase bg-indigo-50 text-indigo-700 tracking-wider flex-shrink-0">
                         {notif.type}
                       </span>
                     </div>
                     <p className="text-xs text-gray-500 leading-normal line-clamp-2">{notif.message}</p>
-                    <p className="text-[9px] text-gray-400 font-medium">
-                      {new Date(notif.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
-                    </p>
+                    <div className="flex items-center justify-between text-[9px] text-gray-400 font-medium pt-0.5">
+                      <span>{new Date(notif.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                      <span className="text-indigo-600 font-bold opacity-0 group-hover:opacity-100 transition-opacity">Open ➔</span>
+                    </div>
                   </div>
                 ))
               )}
@@ -283,6 +290,14 @@ export default function TeacherDashboard() {
           </div>
         </div>
       </div>
+
+      {/* Global Notification Detail Modal */}
+      <NotificationDetailModal
+        isOpen={!!selectedNotif}
+        notification={selectedNotif}
+        onClose={() => setSelectedNotif(null)}
+        userRole={user?.role}
+      />
     </div>
   );
 }

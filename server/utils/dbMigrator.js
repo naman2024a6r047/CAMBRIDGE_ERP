@@ -674,6 +674,8 @@ async function migrateNotificationColumns() {
       { name: 'target_subject', type: DataTypes.STRING(80) },
       { name: 'sub_category',   type: DataTypes.STRING(100) },
       { name: 'priority',       type: DataTypes.STRING(20) },
+      { name: 'link',           type: DataTypes.STRING(255) },
+      { name: 'user_id',        type: DataTypes.INTEGER },
     ];
 
     for (const col of notifCols) {

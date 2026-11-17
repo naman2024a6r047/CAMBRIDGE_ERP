@@ -1,6 +1,10 @@
 import { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import API from '../../utils/api';
+import { useAuth } from '../../context/AuthContext';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
+import NotificationDetailModal from '../../components/common/NotificationDetailModal';
+import { getNotificationDestination } from '../../utils/notificationNavigation';
 import { formatDate } from '../../utils/helpers';
 import toast from 'react-hot-toast';
 
@@ -9,17 +13,20 @@ const typeStyle = {
   attendance_alert: { icon: '⏰', badge: 'bg-red-100 text-red-700' },
   result:           { icon: '📊', badge: 'bg-blue-100 text-blue-700' },
   holiday:          { icon: '🌴', badge: 'bg-green-100 text-green-700' },
-  general:          { icon: 'ℹ️', badge: 'bg-gray-100 text-gray-700' },
+  general:          { icon: '📢', badge: 'bg-gray-100 text-gray-700' },
   academic:         { icon: '📚', badge: 'bg-indigo-100 text-indigo-700' },
-  exam_datesheet:   { icon: '📝', badge: 'bg-purple-100 text-purple-700' },
+  exam_datesheet:   { icon: '📅', badge: 'bg-purple-100 text-purple-700' },
   achievement:      { icon: '🏆', badge: 'bg-amber-100 text-amber-800' },
   emergency:        { icon: '🚨', badge: 'bg-rose-100 text-rose-800' },
 };
 
 export default function MyNotifications() {
-  const [notifs, setNotifs]       = useState([]);
-  const [loading, setLoading]     = useState(true);
-  const [activeTab, setActiveTab] = useState('all');
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const [notifs, setNotifs]               = useState([]);
+  const [loading, setLoading]             = useState(true);
+  const [activeTab, setActiveTab]         = useState('all');
+  const [selectedNotif, setSelectedNotif] = useState(null);
 
   useEffect(() => {
     API.get('/notifications')
@@ -37,6 +44,7 @@ export default function MyNotifications() {
 
   const markAllRead = () => {
     notifs.filter(n => !n.is_read).forEach(n => markRead(n.id));
+    toast.success('All notifications marked as read.');
   };
 
   const unread = notifs.filter(n => !n.is_read).length;
@@ -46,7 +54,7 @@ export default function MyNotifications() {
     if (activeTab === 'urgent') return notifs.filter(n => n.priority === 'urgent');
     if (activeTab === 'fees') return notifs.filter(n => n.type === 'fee_reminder' || n.sub_category?.toLowerCase().includes('fee'));
     if (activeTab === 'academic') return notifs.filter(n => n.type === 'academic' || n.sub_category?.toLowerCase().includes('homework') || n.sub_category?.toLowerCase().includes('syllabus'));
-    if (activeTab === 'exams') return notifs.filter(n => n.type === 'result' || n.type === 'exam_datesheet' || n.sub_category?.toLowerCase().includes('exam') || n.sub_category?.toLowerCase().includes('date sheet'));
+    if (activeTab === 'exams') return notifs.filter(n => n.type === 'result' || n.type === 'exam_datesheet' || n.sub_category?.toLowerCase().includes('exam') || n.sub_category?.toLowerCase().includes('date sheet') || n.sub_category?.toLowerCase().includes('datesheet'));
     if (activeTab === 'holidays') return notifs.filter(n => n.type === 'holiday' || n.sub_category?.toLowerCase().includes('holiday'));
     return notifs;
   }, [notifs, activeTab]);
@@ -84,7 +92,7 @@ export default function MyNotifications() {
           { id: 'all',      label: 'All Notices' },
           { id: 'academic', label: '📚 Academic' },
           { id: 'fees',     label: '💳 Fees' },
-          { id: 'exams',    label: '📝 Exams' },
+          { id: 'exams',    label: '📅 Exams & Datesheets' },
           { id: 'holidays', label: '🌴 Holidays' },
           { id: 'urgent',   label: '🚨 Urgent' },
         ].map(tab => (
@@ -114,24 +122,28 @@ export default function MyNotifications() {
             const style = typeStyle[n.type] || typeStyle.general;
             const isUrgent = n.priority === 'urgent';
             const isHigh   = n.priority === 'high';
+            const dest     = getNotificationDestination(n, user?.role);
 
             return (
               <div
                 key={n.id}
-                onClick={() => !n.is_read && markRead(n.id)}
-                className={`flex gap-3 sm:gap-4 p-4 rounded-2xl border transition-all cursor-pointer active:scale-[0.99] shadow-xs
+                onClick={() => {
+                  setSelectedNotif(n);
+                  if (!n.is_read) markRead(n.id);
+                }}
+                className={`flex gap-3 sm:gap-4 p-4 rounded-2xl border transition-all cursor-pointer active:scale-[0.99] shadow-xs group
                   ${isUrgent
-                    ? 'bg-red-50/50 border-red-200 ring-1 ring-red-100'
+                    ? 'bg-red-50/50 border-red-200 ring-1 ring-red-100 hover:bg-red-50/80'
                     : n.is_read
                     ? 'bg-white border-gray-200 hover:bg-gray-50'
-                    : 'bg-blue-50/50 border-blue-200 ring-1 ring-blue-100'
+                    : 'bg-blue-50/50 border-blue-200 ring-1 ring-blue-100 hover:bg-blue-50/80'
                   }`}
               >
                 <span className="text-xl sm:text-2xl mt-0.5 flex-shrink-0">{style.icon}</span>
 
-                <div className="flex-1 min-w-0 space-y-1">
+                <div className="flex-1 min-w-0 space-y-2">
                   <div className="flex flex-wrap items-center gap-1.5">
-                    <span className={`font-bold text-sm ${n.is_read ? 'text-gray-800' : 'text-gray-900'}`}>
+                    <span className={`font-bold text-sm ${n.is_read ? 'text-gray-800' : 'text-gray-900 font-extrabold'}`}>
                       {n.title}
                     </span>
 
@@ -167,9 +179,28 @@ export default function MyNotifications() {
 
                   <p className="text-xs text-gray-600 leading-relaxed whitespace-pre-wrap">{n.message}</p>
 
-                  <div className="flex items-center justify-between text-[11px] text-gray-400 pt-1">
-                    <span>From: {n.sender?.name || 'School Administration'}</span>
-                    <span>{formatDate(n.created_at || n.createdAt)}</span>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1 border-t border-gray-100/80">
+                    <div className="flex items-center gap-3 text-[11px] text-gray-400">
+                      <span>From: <strong className="text-gray-600">{n.sender?.name || 'School Administration'}</strong></span>
+                      <span>•</span>
+                      <span>{formatDate(n.created_at || n.createdAt)}</span>
+                    </div>
+
+                    {/* Direct Action Link Button */}
+                    {dest?.url && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (!n.is_read) markRead(n.id);
+                          navigate(dest.url);
+                        }}
+                        className="self-start sm:self-auto px-3 py-1 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-xs transition-transform active:scale-95"
+                      >
+                        <span>{dest.label}</span>
+                        <span>➔</span>
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -177,6 +208,15 @@ export default function MyNotifications() {
           })}
         </div>
       )}
+
+      {/* Detail Modal */}
+      <NotificationDetailModal
+        isOpen={!!selectedNotif}
+        notification={selectedNotif}
+        onClose={() => setSelectedNotif(null)}
+        onMarkRead={markRead}
+        userRole={user?.role}
+      />
     </div>
   );
 }
