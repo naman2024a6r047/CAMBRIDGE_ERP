@@ -4,6 +4,7 @@
  */
 
 export const ROLES = {
+  SUPERADMIN:    'superadmin',
   ADMIN:         'admin',
   ADMIN2:        'admin2',
   TEACHER:       'teacher',
@@ -13,25 +14,25 @@ export const ROLES = {
 
 // Named permission groups matching backend
 export const PERMISSIONS = {
-  SUPER_ADMIN:                ['admin'],
-  ADMIN_ANY:                  ['admin', 'admin2'],
-  VIEW_STUDENTS:              ['admin', 'admin2', 'teacher', 'fee_collector'],
-  MANAGE_STUDENTS:            ['admin', 'admin2'],
-  VIEW_TEACHERS:              ['admin', 'admin2'],
-  MANAGE_TEACHERS:            ['admin'],
-  MANAGE_STUDENT_ATTENDANCE:  ['admin', 'admin2', 'teacher'],
-  MANAGE_TEACHER_ATTENDANCE:  ['admin', 'admin2'],
-  ASSIGN_INCHARGE:            ['admin', 'admin2'],
-  MANAGE_FEES:                ['admin', 'admin2', 'fee_collector'],
-  COLLECT_FEES:               ['admin', 'admin2', 'fee_collector'],
-  ENTER_MARKS:                ['admin', 'admin2', 'teacher'],
-  INCHARGE_REVIEW:            ['admin', 'admin2', 'teacher'],
-  ADMIN2_REVIEW_RESULTS:      ['admin', 'admin2'],
-  PUBLISH_RESULTS:            ['admin'],
-  SEND_NOTIFICATIONS:         ['admin', 'admin2'],
-  MANAGE_SESSIONS:            ['admin'],
-  SUBMIT_ADMISSION:           ['admin', 'admin2', 'fee_collector'],
-  REVIEW_ADMISSION:           ['admin', 'admin2'],
+  SUPER_ADMIN:                ['admin', 'superadmin', 'super_admin'],
+  ADMIN_ANY:                  ['admin', 'admin2', 'superadmin', 'super_admin'],
+  VIEW_STUDENTS:              ['admin', 'admin2', 'teacher', 'fee_collector', 'superadmin', 'super_admin'],
+  MANAGE_STUDENTS:            ['admin', 'admin2', 'superadmin', 'super_admin'],
+  VIEW_TEACHERS:              ['admin', 'admin2', 'superadmin', 'super_admin'],
+  MANAGE_TEACHERS:            ['admin', 'superadmin', 'super_admin'],
+  MANAGE_STUDENT_ATTENDANCE:  ['admin', 'admin2', 'teacher', 'superadmin', 'super_admin'],
+  MANAGE_TEACHER_ATTENDANCE:  ['admin', 'admin2', 'superadmin', 'super_admin'],
+  ASSIGN_INCHARGE:            ['admin', 'admin2', 'superadmin', 'super_admin'],
+  MANAGE_FEES:                ['admin', 'admin2', 'fee_collector', 'superadmin', 'super_admin'],
+  COLLECT_FEES:               ['admin', 'admin2', 'fee_collector', 'superadmin', 'super_admin'],
+  ENTER_MARKS:                ['admin', 'admin2', 'teacher', 'superadmin', 'super_admin'],
+  INCHARGE_REVIEW:            ['admin', 'admin2', 'teacher', 'superadmin', 'super_admin'],
+  ADMIN2_REVIEW_RESULTS:      ['admin', 'admin2', 'superadmin', 'super_admin'],
+  PUBLISH_RESULTS:            ['admin', 'superadmin', 'super_admin'],
+  SEND_NOTIFICATIONS:         ['admin', 'admin2', 'superadmin', 'super_admin'],
+  MANAGE_SESSIONS:            ['admin', 'superadmin', 'super_admin'],
+  SUBMIT_ADMISSION:           ['admin', 'admin2', 'fee_collector', 'superadmin', 'super_admin'],
+  REVIEW_ADMISSION:           ['admin', 'admin2', 'superadmin', 'super_admin'],
 };
 
 /**
@@ -41,12 +42,14 @@ export const PERMISSIONS = {
  */
 export const can = (user, permissionKey) => {
   if (!user?.role) return false;
+  const role = (user.role || '').toLowerCase().trim();
+  const effectiveRole = ['superadmin', 'super_admin', 'super-admin'].includes(role) ? 'admin' : role;
   const allowed = PERMISSIONS[permissionKey];
   if (!allowed) {
     console.warn(`[RBAC] Unknown permission key: "${permissionKey}"`);
     return false;
   }
-  return allowed.includes(user.role);
+  return allowed.includes(role) || allowed.includes(effectiveRole);
 };
 
 /**
@@ -56,7 +59,13 @@ export const can = (user, permissionKey) => {
  */
 export const hasRole = (user, ...roles) => {
   if (!user?.role) return false;
-  return roles.includes(user.role);
+  const role = (user.role || '').toLowerCase().trim();
+  const effectiveRole = ['superadmin', 'super_admin', 'super-admin'].includes(role) ? 'admin' : role;
+  const allowed = roles.map(r => (r || '').toLowerCase().trim());
+  if (allowed.includes('admin')) {
+    allowed.push('superadmin', 'super_admin', 'super-admin');
+  }
+  return allowed.includes(role) || allowed.includes(effectiveRole);
 };
 
 /**

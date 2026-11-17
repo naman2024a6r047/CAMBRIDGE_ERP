@@ -9,7 +9,7 @@ export default function CredentialManagement() {
   const { user } = useAuth();
   
   // Tab control based on role
-  const isAdmin = user?.role === 'admin' || user?.role === 'admin2';
+  const isAdmin = user?.role === 'admin' || user?.role === 'admin2' || user?.role === 'superadmin' || user?.role === 'super_admin';
   const isFC = user?.role === 'fee_collector';
   
   const [activeTab, setActiveTab] = useState(isAdmin ? 'teachers' : 'students');

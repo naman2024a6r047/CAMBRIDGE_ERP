@@ -37,6 +37,16 @@ const protect = async (req, res, next) => {
       return res.status(401).json({ message: 'User not found or deactivated.' });
     }
 
+    // Role normalization: Treat 'superadmin' and 'super_admin' as full administrative 'admin'
+    if (req.user) {
+      const rawRole = (req.user.role || '').toLowerCase().trim();
+      if (['superadmin', 'super_admin', 'super-admin'].includes(rawRole)) {
+        req.user.role = 'admin';
+      } else {
+        req.user.role = rawRole;
+      }
+    }
+
     if (req.user.role === 'student' && req.user.linkedStudent?.approval_status !== 'approved') {
       return res.status(401).json({ message: 'Student account is not approved.' });
     }
@@ -84,7 +94,15 @@ const authorize = (...roles) => {
       return res.status(401).json({ message: 'Not authenticated.' });
     }
 
-    if (!roles.includes(req.user.role)) {
+    const userRole = (req.user.role || '').toLowerCase().trim();
+    const effectiveRole = ['superadmin', 'super_admin', 'super-admin'].includes(userRole) ? 'admin' : userRole;
+
+    const allowed = roles.map(r => (r || '').toLowerCase().trim());
+    if (allowed.includes('admin')) {
+      allowed.push('superadmin', 'super_admin', 'super-admin');
+    }
+
+    if (!allowed.includes(userRole) && !allowed.includes(effectiveRole)) {
       return res.status(403).json({
         message: `Access denied. Required: [${roles.join(', ')}]. Your role: ${req.user.role}`,
       });
@@ -115,7 +133,10 @@ const hasPermission = (permissionKey) => {
       return res.status(500).json({ message: 'Server configuration error.' });
     }
 
-    if (!allowedRoles.includes(req.user.role)) {
+    const userRole = (req.user.role || '').toLowerCase().trim();
+    const effectiveRole = ['superadmin', 'super_admin', 'super-admin'].includes(userRole) ? 'admin' : userRole;
+
+    if (!allowedRoles.includes(userRole) && !allowedRoles.includes(effectiveRole)) {
       return res.status(403).json({
         message: `Access denied. Permission required: ${permissionKey}`,
       });
@@ -140,8 +161,10 @@ const hasMinimumRole = (minimumRole) => {
       return res.status(401).json({ message: 'Not authenticated.' });
     }
 
-    const userLevel    = ROLE_LEVELS[req.user.role]    || 0;
-    const minimumLevel = ROLE_LEVELS[minimumRole]       || 0;
+    const userRole = (req.user.role || '').toLowerCase().trim();
+    const effectiveRole = ['superadmin', 'super_admin', 'super-admin'].includes(userRole) ? 'admin' : userRole;
+    const userLevel    = ROLE_LEVELS[userRole] || ROLE_LEVELS[effectiveRole] || 0;
+    const minimumLevel = ROLE_LEVELS[minimumRole] || 0;
 
     if (userLevel < minimumLevel) {
       return res.status(403).json({

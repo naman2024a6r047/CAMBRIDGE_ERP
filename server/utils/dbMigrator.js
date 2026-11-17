@@ -467,6 +467,11 @@ async function migrateStudentMarksheetColumns() {
     const { DataTypes } = require('sequelize');
 
     const columnsToAdd = [
+      { name: 'father_name', type: DataTypes.STRING(100) },
+      { name: 'residential_address', type: DataTypes.TEXT },
+      { name: 'passport_photo', type: DataTypes.TEXT('long') },
+      { name: 'parent_address', type: DataTypes.TEXT },
+      { name: 'parent_occupation', type: DataTypes.STRING(100) },
       { name: 'mother_name', type: DataTypes.STRING(100) },
       { name: 'category', type: DataTypes.STRING(50) },
       { name: 'aadhar_number', type: DataTypes.STRING(30) },
@@ -676,7 +681,78 @@ async function migrateNotificationColumns() {
   }
 }
 
+
+async function migrateTeacherColumns() {
+  try {
+    const qi = sequelize.getQueryInterface();
+    const teachersDesc = await qi.describeTable('teachers').catch(() => null);
+    if (!teachersDesc) return;
+    const { DataTypes } = require('sequelize');
+
+    const cols = [
+      { name: 'teacher_id',       type: DataTypes.STRING(20) },
+      { name: 'staff_type',       type: DataTypes.STRING(50) },
+      { name: 'document_type',   type: DataTypes.STRING(50) },
+      { name: 'document_number', type: DataTypes.STRING(100) },
+      { name: 'assigned_classes',type: DataTypes.TEXT },
+      { name: 'qualification',   type: DataTypes.STRING(100) },
+      { name: 'join_date',       type: DataTypes.DATEONLY },
+      { name: 'status',          type: DataTypes.ENUM('active', 'leave', 'inactive') },
+      { name: 'phone',           type: DataTypes.STRING(15) },
+      { name: 'email',           type: DataTypes.STRING(150) },
+      { name: 'subject',         type: DataTypes.STRING(255) },
+    ];
+
+    for (const col of cols) {
+      if (!teachersDesc[col.name]) {
+        console.log(`[MIGRATOR] Adding column ${col.name} to teachers`);
+        await qi.addColumn('teachers', col.name, {
+          type: col.type,
+          allowNull: true,
+        }).catch(() => {});
+      }
+    }
+    console.log('[MIGRATOR] ✅ Teacher columns verified.');
+  } catch (err) {
+    console.error('[MIGRATOR] ❌ Teacher columns migration notice:', err.message);
+  }
+}
+
+async function migrateUserColumns() {
+  try {
+    const qi = sequelize.getQueryInterface();
+    const usersDesc = await qi.describeTable('users').catch(() => null);
+    if (!usersDesc) return;
+    const { DataTypes } = require('sequelize');
+
+    const cols = [
+      { name: 'linked_teacher_id',   type: DataTypes.INTEGER },
+      { name: 'linked_student_id',   type: DataTypes.INTEGER },
+      { name: 'profile_photo',       type: DataTypes.STRING(255) },
+      { name: 'phone',               type: DataTypes.STRING(15) },
+      { name: 'password_changed_at', type: DataTypes.DATE },
+      { name: 'login_attempts',     type: DataTypes.INTEGER },
+      { name: 'lock_until',          type: DataTypes.DATE },
+    ];
+
+    for (const col of cols) {
+      if (!usersDesc[col.name]) {
+        console.log(`[MIGRATOR] Adding column ${col.name} to users`);
+        await qi.addColumn('users', col.name, {
+          type: col.type,
+          allowNull: true,
+        }).catch(() => {});
+      }
+    }
+    console.log('[MIGRATOR] ✅ User columns verified.');
+  } catch (err) {
+    console.error('[MIGRATOR] ❌ User columns migration notice:', err.message);
+  }
+}
+
 module.exports = {
+  migrateTeacherColumns,
+  migrateUserColumns,
   migratePendingStudents,
   migrateFeeColumns,
   migrateTeacherSubjectColumn,

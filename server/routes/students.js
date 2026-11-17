@@ -45,9 +45,67 @@ const pick = (obj, keys) => {
   return result;
 };
 
+
+let studentSchemaEnsured = false;
+const ensureStudentSchema = async () => {
+  if (studentSchemaEnsured) return;
+  try {
+    const { sequelize } = require('../models');
+    const qi = sequelize.getQueryInterface();
+    const tableDesc = await qi.describeTable('students').catch(() => null);
+    if (!tableDesc) {
+      await Student.sync();
+    } else {
+      const requiredColumns = [
+        { name: 'father_name', sql: 'ALTER TABLE `students` ADD COLUMN `father_name` VARCHAR(100) NULL;' },
+        { name: 'residential_address', sql: 'ALTER TABLE `students` ADD COLUMN `residential_address` TEXT NULL;' },
+        { name: 'passport_photo', sql: 'ALTER TABLE `students` ADD COLUMN `passport_photo` LONGTEXT NULL;' },
+        { name: 'form_no', sql: 'ALTER TABLE `students` ADD COLUMN `form_no` VARCHAR(40) NULL;' },
+        { name: 'father_occupation', sql: 'ALTER TABLE `students` ADD COLUMN `father_occupation` VARCHAR(100) NULL;' },
+        { name: 'mother_name', sql: 'ALTER TABLE `students` ADD COLUMN `mother_name` VARCHAR(100) NULL;' },
+        { name: 'mother_occupation', sql: 'ALTER TABLE `students` ADD COLUMN `mother_occupation` VARCHAR(100) NULL;' },
+        { name: 'father_phone', sql: 'ALTER TABLE `students` ADD COLUMN `father_phone` VARCHAR(20) NULL;' },
+        { name: 'father_whatsapp', sql: 'ALTER TABLE `students` ADD COLUMN `father_whatsapp` VARCHAR(20) NULL;' },
+        { name: 'mother_phone', sql: 'ALTER TABLE `students` ADD COLUMN `mother_phone` VARCHAR(20) NULL;' },
+        { name: 'mother_whatsapp', sql: 'ALTER TABLE `students` ADD COLUMN `mother_whatsapp` VARCHAR(20) NULL;' },
+        { name: 'post_office_tehsil', sql: 'ALTER TABLE `students` ADD COLUMN `post_office_tehsil` VARCHAR(120) NULL;' },
+        { name: 'district', sql: 'ALTER TABLE `students` ADD COLUMN `district` VARCHAR(80) NULL;' },
+        { name: 'pin_code', sql: 'ALTER TABLE `students` ADD COLUMN `pin_code` VARCHAR(15) NULL;' },
+        { name: 'previous_school', sql: 'ALTER TABLE `students` ADD COLUMN `previous_school` VARCHAR(150) NULL;' },
+        { name: 'enquiry_mode', sql: 'ALTER TABLE `students` ADD COLUMN `enquiry_mode` VARCHAR(50) NULL;' },
+        { name: 'category', sql: 'ALTER TABLE `students` ADD COLUMN `category` VARCHAR(50) NULL;' },
+        { name: 'aadhar_number', sql: 'ALTER TABLE `students` ADD COLUMN `aadhar_number` VARCHAR(30) NULL;' },
+        { name: 'pen_number', sql: 'ALTER TABLE `students` ADD COLUMN `pen_number` VARCHAR(30) NULL;' },
+        { name: 'family_id', sql: 'ALTER TABLE `students` ADD COLUMN `family_id` VARCHAR(30) NULL;' },
+        { name: 'profile_photo', sql: 'ALTER TABLE `students` ADD COLUMN `profile_photo` LONGTEXT NULL;' },
+        { name: 'admission_date', sql: 'ALTER TABLE `students` ADD COLUMN `admission_date` DATE NULL;' },
+        { name: 'student_status', sql: "ALTER TABLE `students` ADD COLUMN `student_status` ENUM('active','inactive','alumni','transferred','suspended') DEFAULT 'active';" },
+        { name: 'source', sql: "ALTER TABLE `students` ADD COLUMN `source` ENUM('admin_created','admission_approved') DEFAULT 'admin_created';" },
+        { name: 'admission_request_id', sql: 'ALTER TABLE `students` ADD COLUMN `admission_request_id` INT NULL;' },
+        { name: 'created_by', sql: 'ALTER TABLE `students` ADD COLUMN `created_by` INT NULL;' },
+        { name: 'approval_status', sql: "ALTER TABLE `students` ADD COLUMN `approval_status` ENUM('pending','approved','rejected') DEFAULT 'approved';" },
+        { name: 'approved_by', sql: 'ALTER TABLE `students` ADD COLUMN `approved_by` INT NULL;' },
+        { name: 'approved_at', sql: 'ALTER TABLE `students` ADD COLUMN `approved_at` DATETIME NULL;' },
+        { name: 'rejection_reason', sql: 'ALTER TABLE `students` ADD COLUMN `rejection_reason` TEXT NULL;' },
+        { name: 'parent_address', sql: 'ALTER TABLE `students` ADD COLUMN `parent_address` TEXT NULL;' },
+        { name: 'parent_occupation', sql: 'ALTER TABLE `students` ADD COLUMN `parent_occupation` VARCHAR(100) NULL;' },
+      ];
+      for (const col of requiredColumns) {
+        if (!tableDesc[col.name]) {
+          try { await sequelize.query(col.sql); } catch (e) {}
+        }
+      }
+    }
+    studentSchemaEnsured = true;
+  } catch (err) {
+    console.warn('[students] Schema ensure notice:', err.message);
+  }
+};
+
 // GET /api/students — with category filters
 router.get('/', protect, hasPermission('VIEW_STUDENTS'), async (req, res) => {
   try {
+    await ensureStudentSchema();
     const {
       class: cls, section, search, session_id,
       student_status, source, fee_status,
@@ -124,7 +182,7 @@ router.get('/', protect, hasPermission('VIEW_STUDENTS'), async (req, res) => {
       const fees = await Fee.findAll({
         where: { student_id: studentIds },
         attributes: ['student_id', 'status']
-      });
+      }).catch(() => []);
 
       const studentFees = {};
       fees.forEach(f => {
@@ -167,7 +225,26 @@ router.get('/', protect, hasPermission('VIEW_STUDENTS'), async (req, res) => {
     } else {
       res.json({ total: count, page: parseInt(page), students });
     }
-  } catch (err) { res.status(500).json({ message: err.message }); }
+  } catch (err) {
+    console.error('[students][GET /] Error:', err.message);
+    if (err.message && (err.message.includes('Unknown column') || err.message.includes('no such column'))) {
+      studentSchemaEnsured = false;
+      await ensureStudentSchema();
+      try {
+        const retryResult = await Student.findAndCountAll({
+          where,
+          include: [{ model: Session, as: 'session', attributes: ['id', 'name'] }],
+          order: [['class','ASC'],['section','ASC'],['roll_number','ASC']],
+          limit: parseInt(limit || 50),
+          offset: (parseInt(page || 1) - 1) * parseInt(limit || 50),
+        });
+        return res.json({ total: retryResult.count, page: parseInt(page || 1), students: retryResult.rows });
+      } catch (retryErr) {
+        console.error('[students][GET /] Retry failed:', retryErr.message);
+      }
+    }
+    res.status(500).json({ message: err.message });
+  }
 });
 
 // GET /api/students/alumni — alumni/passed out students

@@ -400,6 +400,8 @@ const onListening = () => {
         // ── Add missing columns that models expect but production may lack ───
         const alterQueries = [
           // Login security columns on users table
+          `ALTER TABLE \`users\` ADD COLUMN \`linked_teacher_id\` INT NULL;`,
+          `ALTER TABLE \`users\` ADD COLUMN \`linked_student_id\` INT NULL;`,
           `ALTER TABLE \`users\` ADD COLUMN \`login_attempts\` INT DEFAULT 0;`,
           `ALTER TABLE \`users\` ADD COLUMN \`lock_until\` DATETIME NULL;`,
           `ALTER TABLE \`users\` ADD COLUMN \`password_changed_at\` DATETIME NULL;`,
@@ -496,6 +498,8 @@ const onListening = () => {
           migrateActiveSession,
           migrateAdmissionRequestColumns,
           migrateNotificationColumns,
+          migrateTeacherColumns,
+          migrateUserColumns,
         } = require('./utils/dbMigrator');
         await migratePendingStudents();
         await migrateFeeColumns();
@@ -506,6 +510,8 @@ const onListening = () => {
         await migrateActiveSession();
         await migrateAdmissionRequestColumns();
         await migrateNotificationColumns();
+        await migrateTeacherColumns();
+        await migrateUserColumns();
 
         // Auto-create default session if none exists (Hotfix for Hostinger setup)
         const { Session, User } = require('./models');

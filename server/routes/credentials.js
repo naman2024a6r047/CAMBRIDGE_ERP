@@ -7,9 +7,9 @@ const { sendCredentialsEmail } = require('../services/mailService');
 const { credentialUpdateLimiter } = require('../middleware/rateLimiters');
 
 // ── Role Definitions ─────────────────────────────────────────────────────────
-const ADMIN_ROLES = ['admin', 'admin2'];
+const ADMIN_ROLES = ['admin', 'admin2', 'superadmin', 'super_admin'];
 const FC_ROLES = ['fee_collector'];
-const ALL_ALLOWED_ROLES = ['admin', 'admin2', 'fee_collector'];
+const ALL_ALLOWED_ROLES = ['admin', 'admin2', 'fee_collector', 'superadmin', 'super_admin'];
 
 // ── GET /api/credentials/teachers ───────────────────────────────────────────
 // Accessible only to: admin, admin2
