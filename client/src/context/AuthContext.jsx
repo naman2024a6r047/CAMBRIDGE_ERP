@@ -25,9 +25,20 @@ export function AuthProvider({ children }) {
 
   // Restore session on mount
   useEffect(() => {
+    const token = localStorage.getItem('token');
+    // If no token exists, the user is a guest / unauthenticated visitor (e.g. on public admission form)
+    if (!token && !document.cookie.includes('token=')) {
+      setUser(null);
+      setLoading(false);
+      return;
+    }
+
     API.get('/auth/me')
       .then(res => setUser(res.data))
-      .catch(() => setUser(null))
+      .catch(() => {
+        localStorage.removeItem('token');
+        setUser(null);
+      })
       .finally(() => setLoading(false));
   }, []);
 

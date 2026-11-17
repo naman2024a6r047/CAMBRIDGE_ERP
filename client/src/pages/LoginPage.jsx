@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useSettings } from '../context/SettingsContext';
 import { ROLE_HOME } from '../constants/routes';
@@ -217,8 +217,8 @@ export default function LoginPage() {
             <p className="text-slate-400 text-xs mb-2.5">
               Looking for student admission? No login or password needed.
             </p>
-            <a
-              href="/admission"
+            <Link
+              to="/admission"
               className="inline-flex items-center justify-center gap-2 w-full py-3 px-4 rounded-2xl bg-gradient-to-r from-amber-500/20 to-yellow-500/20 hover:from-amber-500/30 hover:to-yellow-500/30 text-yellow-300 border border-yellow-400/40 text-xs sm:text-sm font-bold tracking-wide transition-all shadow-md group"
             >
               <span className="text-base group-hover:scale-110 transition-transform">📝</span>
@@ -226,7 +226,7 @@ export default function LoginPage() {
               <span className="text-[10px] bg-yellow-400 text-blue-950 font-black px-2 py-0.5 rounded-full ml-1 uppercase tracking-wider">
                 Public / Free
               </span>
-            </a>
+            </Link>
           </div>
           
         </div>

@@ -24,6 +24,25 @@ API.interceptors.request.use(config => {
   return config;
 });
 
+// Helper to check if a route is public (does not require authentication)
+const isPublicRoute = (pathname) => {
+  if (!pathname) return false;
+  const p = pathname.toLowerCase();
+  return (
+    p === '/login' ||
+    p === '/suspended' ||
+    p === '/admission' ||
+    p.startsWith('/admission') ||
+    p.startsWith('/admissions') ||
+    p.startsWith('/apply') ||
+    p.startsWith('/public/admission') ||
+    p.startsWith('/public-admission') ||
+    p.startsWith('/new-admission') ||
+    p.startsWith('/online-admission') ||
+    p.startsWith('/status')
+  );
+};
+
 // Intercept 423 (Service Suspended) and 401 (Unauthorized)
 API.interceptors.response.use(
   res => res,
@@ -42,7 +61,13 @@ API.interceptors.response.use(
 
     // 401 Unauthorized
     if (err.response?.status === 401) {
-      if (window.location.pathname !== '/login') {
+      localStorage.removeItem('token');
+
+      const isAuthCheck = err.config?.url?.includes('/auth/me');
+      const currentPath = window.location.pathname || '';
+
+      // Only redirect to /login if NOT on a public route and NOT an initial /auth/me check
+      if (!isAuthCheck && !isPublicRoute(currentPath)) {
         window.location.href = '/login';
       }
     }
