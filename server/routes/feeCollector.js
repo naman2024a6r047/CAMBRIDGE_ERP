@@ -7,6 +7,7 @@ const { protect, authorize }        = require('../middleware/auth');
 const { cacheMiddleware } = require('../utils/cache');
 const { buildReceiptData, getOrCreateFeeRecord, getFeeStructureForClass, MONTHS, createAdmissionFee } = require('../services/feeService');
 const { makeStudentId, makeStudentEmail, makeTemporaryPassword } = require('../utils/credentialGenerator');
+const { sendCredentialsEmail } = require('../services/mailService');
 
 const FC_ROLES = ['admin', 'admin2', 'fee_collector'];
 
@@ -707,6 +708,29 @@ router.put('/admission-requests/:id', protect, authorize('admin', 'admin2'), asy
     }
 
     await txn.commit();
+
+    // Auto-dispatch credentials email to student / parent if approved
+    if (status === 'approved' && newStudent && generatedPassword) {
+      const targetEmail = (newStudent.parent_email && newStudent.parent_email.includes('@'))
+        ? newStudent.parent_email.trim()
+        : ((request.parent_email && request.parent_email.includes('@')) 
+            ? request.parent_email.trim() 
+            : ((request.email && request.email.includes('@')) ? request.email.trim() : null));
+
+      if (targetEmail) {
+        sendCredentialsEmail({
+          to: targetEmail,
+          name: `${newStudent.first_name} ${newStudent.last_name}`,
+          loginId: makeStudentEmail(studentId),
+          password: generatedPassword,
+          role: 'Student'
+        }).then(statusRes => {
+          console.log(`[Admission Approval] Auto credentials email sent to ${targetEmail}: status ${statusRes}`);
+        }).catch(mailErr => {
+          console.error(`[Admission Approval] Failed to send credentials email to ${targetEmail}:`, mailErr.message);
+        });
+      }
+    }
 
     res.json({
       message:    `Request ${status}.`,

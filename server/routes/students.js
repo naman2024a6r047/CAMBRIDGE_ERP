@@ -8,6 +8,7 @@ const { getTeacherAllowedClasses, isClassMatch } = require('../utils/teacherAllo
 const { protect, hasPermission, isSuperAdmin, authorize } = require('../middleware/auth');
 const { createAdmissionFee } = require('../services/feeService');
 const { makeStudentId, makeStudentEmail, makeTemporaryPassword } = require('../utils/credentialGenerator');
+const { sendCredentialsEmail } = require('../services/mailService');
 const { validateStudentCreate, validateStudentUpdate, validateStudentApproval } = require('../middleware/validator');
 const { profileUpdateLimiter } = require('../middleware/rateLimiters');
 
@@ -306,6 +307,38 @@ router.put('/:id/approval', protect, authorize('admin'), validateStudentApproval
     }
 
     await txn.commit();
+
+    // If approved, auto-generate fresh temporary password and email student/parent credentials
+    if (status === 'approved') {
+      try {
+        const studentUser = await User.findOne({ where: { linked_student_id: student.id, role: 'student' } });
+        if (studentUser) {
+          const tempPassword = makeTemporaryPassword();
+          studentUser.password = tempPassword;
+          studentUser.password_changed_at = new Date();
+          await studentUser.save();
+
+          const targetEmail = (student.parent_email && student.parent_email.includes('@'))
+            ? student.parent_email.trim()
+            : studentUser.email;
+
+          sendCredentialsEmail({
+            to: targetEmail,
+            name: `${student.first_name} ${student.last_name}`,
+            loginId: studentUser.email,
+            password: tempPassword,
+            role: 'Student'
+          }).then(statusRes => {
+            console.log(`[Student Approval] Credentials sent to ${targetEmail}: status ${statusRes}`);
+          }).catch(err => {
+            console.error(`[Student Approval] Credentials send error for ${targetEmail}:`, err.message);
+          });
+        }
+      } catch (postApprovalErr) {
+        console.error('[Student Approval] Non-fatal credentials dispatch error:', postApprovalErr);
+      }
+    }
+
     res.json({ message: `Student ${status}.`, student });
   } catch (err) {
     await txn.rollback();
@@ -815,6 +848,27 @@ router.post('/', protect, authorize('admin', 'admin2', 'fee_collector'), validat
     }
 
     await txn.commit();
+
+    // Auto-dispatch credentials email to student/parent if approved and email is available
+    if (isApproved) {
+      const targetEmail = (student.parent_email && student.parent_email.includes('@'))
+        ? student.parent_email.trim()
+        : ((userEmail && userEmail.includes('@') && !userEmail.endsWith('.local') && !userEmail.endsWith('.internal')) ? userEmail.trim() : null);
+
+      if (targetEmail) {
+        sendCredentialsEmail({
+          to: targetEmail,
+          name: `${student.first_name} ${student.last_name}`,
+          loginId: userEmail,
+          password: userPassword,
+          role: 'Student'
+        }).then(status => {
+          console.log(`[Student Creation] Auto credentials email sent to ${targetEmail}: ${status}`);
+        }).catch(err => {
+          console.error(`[Student Creation] Email dispatch error to ${targetEmail}:`, err.message);
+        });
+      }
+    }
 
     res.status(201).json({
       student,

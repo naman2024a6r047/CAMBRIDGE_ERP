@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { Op } = require('sequelize');
-const { User } = require('../models');
+const { User, Student } = require('../models');
 const { protect, authorize } = require('../middleware/auth');
 const { sendCredentialsEmail } = require('../services/mailService');
 const { credentialUpdateLimiter } = require('../middleware/rateLimiters');
@@ -64,22 +64,37 @@ router.get('/fee-collectors', protect, authorize(...ADMIN_ROLES), async (req, re
 });
 
 // ── GET /api/credentials/students ───────────────────────────────────────────
-// Accessible only to: fee_collector (also allow admins for administrative safety)
+// Accessible to: admin, admin2, fee_collector
 router.get('/students', protect, authorize(...ALL_ALLOWED_ROLES), async (req, res) => {
   try {
-    const { search } = req.query;
+    const { search, class: filterClass } = req.query;
     const where = { role: 'student' };
 
     if (search) {
       where[Op.or] = [
         { name: { [Op.like]: `%${search}%` } },
-        { email: { [Op.like]: `%${search}%` } }
+        { email: { [Op.like]: `%${search}%` } },
+        { phone: { [Op.like]: `%${search}%` } }
       ];
+    }
+
+    const studentInclude = {
+      model: Student,
+      as: 'linkedStudent',
+      attributes: [
+        'id', 'student_id', 'class', 'section', 'roll_number',
+        'parent_name', 'father_name', 'parent_phone', 'parent_email', 'approval_status'
+      ],
+    };
+
+    if (filterClass && filterClass !== 'all') {
+      studentInclude.where = { class: filterClass };
     }
 
     const students = await User.findAll({
       where,
-      attributes: ['id', 'name', 'email', 'role', 'is_active', 'phone'],
+      attributes: ['id', 'name', 'email', 'role', 'is_active', 'phone', 'linked_student_id'],
+      include: [studentInclude],
       order: [['name', 'ASC']]
     });
 
@@ -97,7 +112,9 @@ router.put('/:id', credentialUpdateLimiter, protect, authorize(...ALL_ALLOWED_RO
     const { email, password } = req.body;
     const requesterRole = req.user.role;
 
-    const user = await User.findByPk(id);
+    const user = await User.findByPk(id, {
+      include: [{ model: Student, as: 'linkedStudent' }]
+    });
     if (!user) {
       return res.status(404).json({ message: 'User credentials not found.' });
     }
@@ -158,13 +175,17 @@ router.put('/:id', credentialUpdateLimiter, protect, authorize(...ALL_ALLOWED_RO
     let emailQueued = false;
     if (req.body.sendEmail !== false) {
       const emailPass = passwordUpdated ? password : '[Password Unchanged]';
+      const targetEmail = (user.role === 'student' && user.linkedStudent?.parent_email && user.linkedStudent.parent_email.includes('@'))
+        ? user.linkedStudent.parent_email.trim()
+        : user.email;
+
       try {
         const emailTask = sendCredentialsEmail({
-          to: user.email,
+          to: targetEmail,
           name: user.name,
           loginId: user.email,
           password: emailPass,
-          role: user.role
+          role: user.role === 'student' ? 'Student' : (user.role === 'teacher' ? 'Teacher' : 'Fee Collector')
         });
 
         // Fast race with 2.5s timeout: keeps UI snappy even on slow SMTP connections
@@ -176,9 +197,9 @@ router.put('/:id', credentialUpdateLimiter, protect, authorize(...ALL_ALLOWED_RO
         } else if (outcome === 'timeout') {
           emailQueued = true;
           emailTask.then((res) => {
-            console.log(`[Credentials] Background email to ${user.email} completed with status: ${res}`);
+            console.log(`[Credentials] Background email to ${targetEmail} completed with status: ${res}`);
           }).catch(err => {
-            console.error(`[Credentials] Background email error for ${user.email}:`, err);
+            console.error(`[Credentials] Background email error for ${targetEmail}:`, err);
           });
         }
       } catch (mailErr) {
@@ -218,7 +239,9 @@ router.post('/:id/send', credentialUpdateLimiter, protect, authorize(...ALL_ALLO
     const { password, generateNew, keepCurrent } = req.body;
     const requesterRole = req.user.role;
 
-    const user = await User.findByPk(id);
+    const user = await User.findByPk(id, {
+      include: [{ model: Student, as: 'linkedStudent' }]
+    });
     if (!user) {
       return res.status(404).json({ message: 'User credentials not found.' });
     }
@@ -273,16 +296,22 @@ router.post('/:id/send', credentialUpdateLimiter, protect, authorize(...ALL_ALLO
       tempPassword = cleanPass;
     }
 
+    const isStudent = user.role === 'student';
+    const targetEmail = (isStudent && user.linkedStudent?.parent_email && user.linkedStudent.parent_email.includes('@'))
+      ? user.linkedStudent.parent_email.trim()
+      : user.email;
+    const displayRole = isStudent ? 'Student' : (user.role === 'teacher' ? 'Teacher' : 'Fee Collector');
+
     // Fast send with 2.5s race timeout
     let emailSent = false;
     let emailQueued = false;
     try {
       const emailTask = sendCredentialsEmail({
-        to: user.email,
+        to: targetEmail,
         name: user.name,
         loginId: user.email,
         password: passwordToSend,
-        role: user.role
+        role: displayRole
       });
       const timeoutTask = new Promise((resolve) => setTimeout(() => resolve('timeout'), 2500));
       const outcome = await Promise.race([emailTask, timeoutTask]);
@@ -292,9 +321,9 @@ router.post('/:id/send', credentialUpdateLimiter, protect, authorize(...ALL_ALLO
       } else if (outcome === 'timeout') {
         emailQueued = true;
         emailTask.then((res) => {
-          console.log(`[Credentials] Background email to ${user.email} completed: ${res}`);
+          console.log(`[Credentials] Background email to ${targetEmail} completed: ${res}`);
         }).catch(err => {
-          console.error(`[Credentials] Background email error for ${user.email}:`, err);
+          console.error(`[Credentials] Background email error for ${targetEmail}:`, err);
         });
       }
     } catch (mailErr) {
@@ -306,21 +335,112 @@ router.post('/:id/send', credentialUpdateLimiter, protect, authorize(...ALL_ALLO
       emailSent,
       emailQueued,
       temporaryPassword: tempPassword,
+      targetEmail,
       message: emailSent
-        ? `Credentials sent to ${user.email} successfully!`
+        ? `Credentials sent to ${targetEmail} (Login ID: ${user.email}) successfully!`
         : (emailQueued
-            ? `Credentials updated! Email is dispatching in background to ${user.email}.`
+            ? `Credentials updated! Email is dispatching in background to ${targetEmail}.`
             : `Credentials updated, but email could not be delivered. Please check mail settings.`),
       user: {
         id: user.id,
         name: user.name,
         email: user.email,
         role: user.role,
-        is_active: user.is_active
+        is_active: user.is_active,
+        parent_email: user.linkedStudent?.parent_email || null
       }
     });
 
   } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// ── POST /api/credentials/students/batch-auto-send ──────────────────────────
+// Accessible to: admin, admin2, fee_collector
+// Auto-generates passwords and dispatches credential emails to an entire class or list of students
+router.post('/students/batch-auto-send', credentialUpdateLimiter, protect, authorize(...ALL_ALLOWED_ROLES), async (req, res) => {
+  try {
+    const { class: filterClass, studentUserIds } = req.body;
+    const { makeTemporaryPassword } = require('../utils/credentialGenerator');
+
+    const where = { role: 'student' };
+    if (Array.isArray(studentUserIds) && studentUserIds.length > 0) {
+      where.id = { [Op.in]: studentUserIds };
+    }
+
+    const studentInclude = {
+      model: Student,
+      as: 'linkedStudent',
+      attributes: [
+        'id', 'student_id', 'class', 'section', 'roll_number',
+        'parent_name', 'father_name', 'parent_phone', 'parent_email', 'approval_status'
+      ],
+    };
+
+    if (filterClass && filterClass !== 'all') {
+      studentInclude.where = { class: filterClass };
+    }
+
+    const students = await User.findAll({
+      where,
+      include: [studentInclude]
+    });
+
+    if (!students || students.length === 0) {
+      return res.status(404).json({ message: 'No student accounts found matching criteria.' });
+    }
+
+    let processedCount = 0;
+    const studentResults = [];
+
+    for (const studentUser of students) {
+      try {
+        const newPassword = makeTemporaryPassword();
+        studentUser.password = newPassword;
+        studentUser.password_changed_at = new Date();
+        await studentUser.save();
+
+        const targetEmail = (studentUser.linkedStudent?.parent_email && studentUser.linkedStudent.parent_email.includes('@'))
+          ? studentUser.linkedStudent.parent_email.trim()
+          : studentUser.email;
+
+        // Dispatch email non-blockingly
+        sendCredentialsEmail({
+          to: targetEmail,
+          name: studentUser.name,
+          loginId: studentUser.email,
+          password: newPassword,
+          role: 'Student'
+        }).then(status => {
+          console.log(`[Batch Credentials] Auto password dispatched for ${studentUser.name} to ${targetEmail}: status ${status}`);
+        }).catch(err => {
+          console.error(`[Batch Credentials] Error emailing ${targetEmail}:`, err.message);
+        });
+
+        processedCount++;
+        studentResults.push({
+          id: studentUser.id,
+          name: studentUser.name,
+          loginId: studentUser.email,
+          targetEmail,
+          class: studentUser.linkedStudent?.class || '—',
+          temporaryPassword: newPassword
+        });
+      } catch (rowErr) {
+        console.error(`[Batch Credentials] Error processing user ${studentUser.id}:`, rowErr);
+      }
+    }
+
+    res.json({
+      success: true,
+      count: processedCount,
+      students: studentResults,
+      message: `Successfully auto-generated passwords and triggered email delivery for ${processedCount} student(s).`
+    });
+
+  } catch (error) {
+    console.error('[Credentials] Batch auto-send error:', error);
     res.status(500).json({ message: error.message });
   }
 });

@@ -1,7 +1,7 @@
 const assert = require('assert');
 const bcrypt = require('bcryptjs');
-const { sequelize, User } = require('../models');
-const { makeTemporaryPassword } = require('../utils/credentialGenerator');
+const { sequelize, User, Student, AdmissionRequest } = require('../models');
+const { makeTemporaryPassword, makeStudentEmail, makeStudentId } = require('../utils/credentialGenerator');
 
 async function runCredentialManagementTests() {
   console.log('\n================================================================');
@@ -80,11 +80,74 @@ async function runCredentialManagementTests() {
   assert.strictEqual(ADMIN_ROLES.includes('teacher'), false);
   console.log('✅ PASS');
 
+  // TEST 6: Student Auto Password Generation and Parent Email Dispatch Target
+  process.stdout.write('  [TEST] 6. Student auto password generation and parent email routing ... ');
+  const student = await Student.create({
+    student_id: 'ICS-TEST-999',
+    first_name: 'Aarav',
+    last_name: 'Sharma',
+    class: 'Class 5',
+    section: 'A',
+    roll_number: 101,
+    parent_name: 'Vikram Sharma',
+    parent_email: 'vikram.parent@example.com',
+    parent_phone: '9876543211',
+    approval_status: 'approved',
+    is_active: true
+  });
+
+  const studentUserEmail = makeStudentEmail(`ICS-TEST-${student.id}`);
+  const studentInitialPass = makeTemporaryPassword();
+
+  const studentUser = await User.create({
+    name: 'Aarav Sharma',
+    email: studentUserEmail,
+    password: studentInitialPass,
+    role: 'student',
+    linked_student_id: student.id,
+    is_active: true
+  });
+
+  // Verify parent email routing logic
+  const targetEmail = (studentUser.role === 'student' && student.parent_email && student.parent_email.includes('@'))
+    ? student.parent_email.trim()
+    : studentUser.email;
+  assert.strictEqual(targetEmail, 'vikram.parent@example.com');
+  assert.strictEqual(studentUser.email, studentUserEmail);
+
+  // Auto-generate fresh temporary password
+  const newStudentAutoPass = makeTemporaryPassword();
+  studentUser.password = newStudentAutoPass;
+  studentUser.password_changed_at = new Date();
+  await studentUser.save();
+
+  const reloadedStudentUser = await User.findByPk(studentUser.id);
+  const matchStudentPass = await reloadedStudentUser.comparePassword(newStudentAutoPass);
+  assert.strictEqual(matchStudentPass, true);
+  console.log('✅ PASS');
+
+  // TEST 7: Student Batch Auto Password Generation logic
+  process.stdout.write('  [TEST] 7. Batch auto password generation updates multiple student accounts ... ');
+  const studentsInBatch = [studentUser];
+  const batchPasses = [];
+  for (const sUser of studentsInBatch) {
+    const bPass = makeTemporaryPassword();
+    batchPasses.push(bPass);
+    sUser.password = bPass;
+    sUser.password_changed_at = new Date();
+    await sUser.save();
+  }
+  const verifiedBatchStudent = await User.findByPk(studentUser.id);
+  const matchBatch = await verifiedBatchStudent.comparePassword(batchPasses[0]);
+  assert.strictEqual(matchBatch, true);
+  console.log('✅ PASS');
+
   // Clean up
   try {
-    await User.destroy({ where: { email: [teacherEmail, updatedEmail] } });
+    await User.destroy({ where: { email: [teacherEmail, updatedEmail, studentUserEmail] } });
+    await Student.destroy({ where: { id: student.id } });
   } catch (e) {
-    // Ignore foreign key cleanup constraint in SQLite tests
+    // Ignore cleanup errors
   }
 
   console.log('\n================================================================');

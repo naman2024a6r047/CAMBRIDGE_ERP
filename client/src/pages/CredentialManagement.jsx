@@ -3,10 +3,11 @@ import API from '../utils/api';
 import SearchBar from '../components/common/SearchBar';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import { useAuth } from '../context/AuthContext';
+import { CLASSES } from '../constants/roles';
 import toast from 'react-hot-toast';
 
 function generateRandomPassword() {
-  const prefixes = ['Camp', 'Sch', 'Edu', 'Pass', 'Login', 'Teach'];
+  const prefixes = ['Camp', 'Sch', 'Edu', 'Pass', 'Login', 'Teach', 'Stud', 'ICS'];
   const prefix = prefixes[Math.floor(Math.random() * prefixes.length)];
   const num = Math.floor(1000 + Math.random() * 9000);
   return `${prefix}@${num}`;
@@ -20,6 +21,7 @@ export default function CredentialManagement() {
   const isFC = user?.role === 'fee_collector';
   
   const [activeTab, setActiveTab] = useState(isAdmin ? 'teachers' : 'students');
+  const [selectedClass, setSelectedClass] = useState('all');
   const [usersList, setUsersList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -40,20 +42,24 @@ export default function CredentialManagement() {
   const [customPass, setCustomPass] = useState('');
   const [showCustomPass, setShowCustomPass] = useState(false);
   const [sendingEmailId, setSendingEmailId] = useState(null);
+  const [batchSending, setBatchSending] = useState(false);
 
-  // Tracks email delivery status per row ID: 'idle' | 'success' | 'queued' | 'failed'
+  // Tracks email delivery status per row ID: 'idle' | 'success' | 'queued' | 'failed' | 'saved'
   const [mailStatuses, setMailStatuses] = useState({});
 
-  // Fetch users based on active tab
-  const fetchCredentials = async (query = '') => {
+  // Fetch users based on active tab and filters
+  const fetchCredentials = async (query = searchQuery, cls = selectedClass) => {
     setLoading(true);
     try {
       let endpoint = '';
       if (activeTab === 'teachers') endpoint = '/credentials/teachers';
       else if (activeTab === 'fee_collectors') endpoint = '/credentials/fee-collectors';
-      else if (activeTab === 'students') endpoint = '/credentials/students';
+      else if (activeTab === 'students') {
+        endpoint = `/credentials/students?class=${encodeURIComponent(cls || 'all')}`;
+      }
       
-      const res = await API.get(`${endpoint}?search=${query}`);
+      const separator = endpoint.includes('?') ? '&' : '?';
+      const res = await API.get(`${endpoint}${separator}search=${encodeURIComponent(query)}`);
       setUsersList(res.data);
     } catch (error) {
       toast.error(error.response?.data?.message || 'Failed to load credentials.');
@@ -65,12 +71,12 @@ export default function CredentialManagement() {
   useEffect(() => {
     cancelEdit();
     closeSendModal();
-    fetchCredentials(searchQuery);
-  }, [activeTab]);
+    fetchCredentials(searchQuery, selectedClass);
+  }, [activeTab, selectedClass]);
 
   const handleSearch = (q) => {
     setSearchQuery(q);
-    fetchCredentials(q);
+    fetchCredentials(q, selectedClass);
   };
 
   const startEdit = (row) => {
@@ -156,7 +162,7 @@ export default function CredentialManagement() {
     setCustomPass('');
   };
 
-  // Dispatch Credentials Email
+  // Dispatch Credentials Email from Modal
   const submitSendCredentials = async () => {
     if (!sendTargetUser) return;
     const rowId = sendTargetUser.id;
@@ -177,13 +183,13 @@ export default function CredentialManagement() {
       const res = await API.post(`/credentials/${rowId}/send`, payload);
 
       if (res.data.emailSent) {
-        toast.success(res.data.message || `Credentials sent to ${sendTargetUser.email}!`);
+        toast.success(res.data.message || `Credentials sent to ${res.data.targetEmail || sendTargetUser.email}!`);
         setMailStatuses(prev => ({ ...prev, [rowId]: 'success' }));
       } else if (res.data.emailQueued) {
-        toast.success(`Credentials saved! Email is dispatching to ${sendTargetUser.email} in background.`);
+        toast.success(`Credentials saved! Email is dispatching in background.`);
         setMailStatuses(prev => ({ ...prev, [rowId]: 'queued' }));
       } else {
-        toast(res.data.message || 'Credentials updated, but SMTP delivery could not complete.', { icon: '⚠️' });
+        toast(res.data.message || 'Credentials updated, but email delivery could not complete.', { icon: '⚠️' });
         setMailStatuses(prev => ({ ...prev, [rowId]: 'failed' }));
       }
 
@@ -192,6 +198,56 @@ export default function CredentialManagement() {
       toast.error(error.response?.data?.message || 'Failed to send credentials.');
     } finally {
       setSendingEmailId(null);
+    }
+  };
+
+  // Fast 1-click Auto-Generate & Send Credentials
+  const handleQuickAutoSend = async (row) => {
+    setSendingEmailId(row.id);
+    try {
+      const res = await API.post(`/credentials/${row.id}/send`, { generateNew: true });
+      if (res.data.emailSent) {
+        toast.success(res.data.message || `Password generated and credentials sent!`, { duration: 5000 });
+        setMailStatuses(prev => ({ ...prev, [rowId]: 'success' }));
+      } else if (res.data.emailQueued) {
+        toast.success(`Password generated! Credentials are being dispatched in background.`, { duration: 5000 });
+        setMailStatuses(prev => ({ ...prev, [rowId]: 'queued' }));
+      } else {
+        toast(res.data.message || 'Password generated, but email could not be delivered.', { icon: '⚠️' });
+        setMailStatuses(prev => ({ ...prev, [rowId]: 'failed' }));
+      }
+      if (res.data.temporaryPassword) {
+        toast(`Temporary Password: ${res.data.temporaryPassword}`, {
+          icon: '🔑',
+          duration: 8000,
+        });
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to auto-generate and send credentials.');
+      setMailStatuses(prev => ({ ...prev, [rowId]: 'failed' }));
+    } finally {
+      setSendingEmailId(null);
+    }
+  };
+
+  // Batch auto-generate and email for students
+  const handleBatchAutoSend = async () => {
+    const scopeLabel = selectedClass === 'all' ? 'All Classes' : selectedClass;
+    if (!window.confirm(`Auto-generate temporary passwords and email credentials to all students in ${scopeLabel}?\n\nEach student will receive a secure auto-generated password delivered directly to their registered parent email.`)) {
+      return;
+    }
+
+    setBatchSending(true);
+    try {
+      const res = await API.post('/credentials/students/batch-auto-send', {
+        class: selectedClass
+      });
+      toast.success(res.data.message || `Successfully sent credentials to ${res.data.count} students!`, { duration: 6000 });
+      fetchCredentials(searchQuery, selectedClass);
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to dispatch batch credentials.');
+    } finally {
+      setBatchSending(false);
     }
   };
 
@@ -208,7 +264,7 @@ export default function CredentialManagement() {
       <div className="border-b border-gray-100 bg-gray-50/50 p-4 sm:p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h2 className="text-xl font-bold text-gray-800">Credential Management</h2>
-          <p className="text-sm text-gray-500 mt-1">Manage system login IDs, set secure passwords, and trigger instant email credentials dispatch.</p>
+          <p className="text-sm text-gray-500 mt-1">Manage system login IDs, auto-generate passwords, and trigger instant credentials email delivery.</p>
         </div>
 
         {/* Tab Controls */}
@@ -234,6 +290,16 @@ export default function CredentialManagement() {
             >
               Fee Collectors
             </button>
+            <button
+              onClick={() => setActiveTab('students')}
+              className={`px-4 py-2 text-xs font-semibold rounded-lg transition-all ${
+                activeTab === 'students' 
+                  ? 'bg-white text-blue-600 shadow-sm' 
+                  : 'text-gray-600 hover:text-gray-800'
+              }`}
+            >
+              Students
+            </button>
           </div>
         )}
 
@@ -246,10 +312,67 @@ export default function CredentialManagement() {
 
       <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
         
+        {/* Class Filter Pills & Batch Action for Students */}
+        {activeTab === 'students' && (
+          <div className="bg-slate-50/80 rounded-xl p-3 border border-slate-200/60 flex flex-col md:flex-row md:items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-xs font-bold text-gray-600 mr-1 flex items-center gap-1">
+                <svg className="w-3.5 h-3.5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                </svg>
+                Class Filter:
+              </span>
+              <button
+                onClick={() => setSelectedClass('all')}
+                className={`px-2.5 py-1 text-xs rounded-lg font-semibold transition-colors ${
+                  selectedClass === 'all'
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-100'
+                }`}
+              >
+                All Classes
+              </button>
+              {CLASSES.map((cls) => (
+                <button
+                  key={cls}
+                  onClick={() => setSelectedClass(cls)}
+                  className={`px-2.5 py-1 text-xs rounded-lg font-semibold transition-colors ${
+                    selectedClass === cls
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-100'
+                  }`}
+                >
+                  {cls}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleBatchAutoSend}
+                disabled={batchSending || usersList.length === 0}
+                className="inline-flex items-center gap-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow-xs disabled:opacity-50 transition-all whitespace-nowrap"
+                title="Auto-generate passwords and dispatch emails to all students in selected class"
+              >
+                {batchSending ? (
+                  <>
+                    <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                    <span>Dispatching...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>⚡ Auto-Gen & Email All ({selectedClass === 'all' ? 'All' : selectedClass})</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Search Controls */}
         <div className="max-w-md">
           <SearchBar
-            placeholder={`Search by name, login email, or phone...`}
+            placeholder={activeTab === 'students' ? "Search student name, ID, parent email, or phone..." : "Search by name, login email, or phone..."}
             onChange={handleSearch}
           />
         </div>
@@ -259,12 +382,21 @@ export default function CredentialManagement() {
           <table className="min-w-full divide-y divide-gray-100 text-left">
             <thead className="bg-gray-50 text-xs font-semibold text-gray-600 uppercase tracking-wider">
               <tr>
-                <th className="px-6 py-4">Name</th>
-                <th className="px-6 py-4">Role</th>
-                <th className="px-6 py-4">Contact Phone</th>
+                <th className="px-6 py-4">{activeTab === 'students' ? 'Student' : 'Name'}</th>
+                {activeTab === 'students' ? (
+                  <>
+                    <th className="px-6 py-4">Class & Sec</th>
+                    <th className="px-6 py-4">Parent & Contact</th>
+                  </>
+                ) : (
+                  <>
+                    <th className="px-6 py-4">Role</th>
+                    <th className="px-6 py-4">Contact Phone</th>
+                  </>
+                )}
                 <th className="px-6 py-4">Login ID (Username)</th>
                 <th className="px-6 py-4">Password</th>
-                <th className="px-6 py-4 text-center">Email Delivery Status</th>
+                <th className="px-6 py-4 text-center">Email Status</th>
                 <th className="px-6 py-4 text-right">Actions</th>
               </tr>
             </thead>
@@ -272,7 +404,7 @@ export default function CredentialManagement() {
             <tbody className="divide-y divide-gray-100 text-sm text-gray-700 bg-white">
               {loading ? (
                 <tr>
-                  <td colSpan="7" className="py-12 text-center">
+                  <td colSpan={7} className="py-12 text-center">
                     <div className="flex flex-col items-center justify-center gap-2">
                       <LoadingSpinner />
                       <span className="text-xs text-gray-400">Loading credentials list...</span>
@@ -281,7 +413,7 @@ export default function CredentialManagement() {
                 </tr>
               ) : usersList.length === 0 ? (
                 <tr>
-                  <td colSpan="7" className="py-12 text-center text-gray-400 text-sm">
+                  <td colSpan={7} className="py-12 text-center text-gray-400 text-sm">
                     No users found matching your search.
                   </td>
                 </tr>
@@ -295,22 +427,59 @@ export default function CredentialManagement() {
                   return (
                     <tr key={row.id} className="hover:bg-gray-50/50 transition-colors">
                       
-                      {/* Name */}
-                      <td className="px-6 py-4 font-medium text-gray-800">{row.name}</td>
-                      
-                      {/* Role */}
-                      <td className="px-6 py-4 capitalize">
-                        <span className={`inline-block px-2.5 py-1 rounded-lg text-xs font-medium ${
-                          row.role === 'teacher' ? 'bg-indigo-50 text-indigo-700' :
-                          row.role === 'fee_collector' ? 'bg-orange-50 text-orange-700' :
-                          'bg-emerald-50 text-emerald-700'
-                        }`}>
-                          {row.role?.replace('_', ' ')}
-                        </span>
+                      {/* Name / Student ID */}
+                      <td className="px-6 py-4">
+                        <div className="font-semibold text-gray-800">{row.name}</div>
+                        {row.linkedStudent?.student_id && (
+                          <div className="mt-0.5">
+                            <span className="inline-block text-[11px] font-mono text-blue-700 bg-blue-50 px-1.5 py-0.2 rounded font-bold border border-blue-200">
+                              {row.linkedStudent.student_id}
+                            </span>
+                          </div>
+                        )}
                       </td>
                       
-                      {/* Contact Phone */}
-                      <td className="px-6 py-4 text-gray-500 font-mono text-xs">{row.phone || '—'}</td>
+                      {/* Student specific: Class & Sec | Non-student: Role */}
+                      {activeTab === 'students' ? (
+                        <>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className="inline-block px-2.5 py-1 rounded-lg text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-100">
+                              {row.linkedStudent?.class || '—'} {row.linkedStudent?.section ? `(${row.linkedStudent.section})` : ''}
+                            </span>
+                            {row.linkedStudent?.roll_number && (
+                              <div className="text-[11px] text-gray-400 mt-0.5 font-medium">Roll: {row.linkedStudent.roll_number}</div>
+                            )}
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="text-xs font-semibold text-gray-800">
+                              {row.linkedStudent?.parent_name || row.linkedStudent?.father_name || 'Parent'}
+                            </div>
+                            {row.linkedStudent?.parent_email ? (
+                              <div className="text-[11px] font-mono text-emerald-700 truncate max-w-[170px]" title={row.linkedStudent.parent_email}>
+                                ✉ {row.linkedStudent.parent_email}
+                              </div>
+                            ) : (
+                              <div className="text-[11px] text-amber-600 font-medium">No parent email</div>
+                            )}
+                            <div className="text-[11px] font-mono text-gray-500">
+                              📞 {row.phone || row.linkedStudent?.parent_phone || '—'}
+                            </div>
+                          </td>
+                        </>
+                      ) : (
+                        <>
+                          <td className="px-6 py-4 capitalize">
+                            <span className={`inline-block px-2.5 py-1 rounded-lg text-xs font-medium ${
+                              row.role === 'teacher' ? 'bg-indigo-50 text-indigo-700' :
+                              row.role === 'fee_collector' ? 'bg-orange-50 text-orange-700' :
+                              'bg-emerald-50 text-emerald-700'
+                            }`}>
+                              {row.role?.replace('_', ' ')}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 text-gray-500 font-mono text-xs">{row.phone || '—'}</td>
+                        </>
+                      )}
                       
                       {/* Login ID Input / Display */}
                       <td className="px-6 py-4">
@@ -330,7 +499,7 @@ export default function CredentialManagement() {
                       </td>
                       
                       {/* Password Input / Display */}
-                      <td className="px-6 py-4">
+                      <td className="px-6 py-4 min-w-[200px]">
                         {isEditing ? (
                           <div className="space-y-1.5">
                             <div className="relative">
@@ -338,26 +507,40 @@ export default function CredentialManagement() {
                                 type={showPassword ? 'text' : 'password'}
                                 value={editPassword}
                                 onChange={(e) => setEditPassword(e.target.value)}
-                                className="w-full bg-white border border-gray-300 rounded-lg pl-3 pr-8 py-1.5 text-xs focus:ring-1 focus:ring-blue-500 focus:outline-none"
-                                placeholder="Enter new password (optional)"
+                                className="w-full bg-white border border-gray-300 rounded-lg pl-3 pr-12 py-1.5 text-xs focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                                placeholder="Enter new password"
                               />
                               <button
                                 type="button"
                                 onClick={() => setShowPassword(!showPassword)}
-                                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs"
+                                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs"
                               >
                                 {showPassword ? 'Hide' : 'Show'}
                               </button>
                             </div>
-                            <label className="flex items-center gap-1.5 text-[11px] text-gray-600 cursor-pointer select-none">
-                              <input
-                                type="checkbox"
-                                checked={editSendEmail}
-                                onChange={(e) => setEditSendEmail(e.target.checked)}
-                                className="rounded text-blue-600 text-xs"
-                              />
-                              <span>Send credentials email on save</span>
-                            </label>
+                            <div className="flex items-center justify-between gap-1 pt-0.5">
+                              <label className="flex items-center gap-1 text-[11px] text-gray-600 cursor-pointer select-none">
+                                <input
+                                  type="checkbox"
+                                  checked={editSendEmail}
+                                  onChange={(e) => setEditSendEmail(e.target.checked)}
+                                  className="rounded text-blue-600 text-xs"
+                                />
+                                <span>Send email</span>
+                              </label>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const p = generateRandomPassword();
+                                  setEditPassword(p);
+                                  setShowPassword(true);
+                                }}
+                                className="text-[11px] font-semibold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-1.5 py-0.5 rounded border border-blue-200 transition-colors"
+                                title="Auto-generate a secure temporary password"
+                              >
+                                🎲 Auto-Gen
+                              </button>
+                            </div>
                           </div>
                         ) : (
                           <span className="text-gray-400 font-mono text-xs select-none">••••••••</span>
@@ -365,7 +548,7 @@ export default function CredentialManagement() {
                       </td>
                       
                       {/* Email Delivery Status Badge */}
-                      <td className="px-6 py-4 text-center">
+                      <td className="px-6 py-4 text-center whitespace-nowrap">
                         {mailStatus === 'success' && (
                           <span className="inline-flex items-center gap-1 bg-green-50 text-green-700 px-2.5 py-1 rounded-full text-xs font-semibold">
                             <span className="h-1.5 w-1.5 rounded-full bg-green-500"></span>
@@ -375,7 +558,7 @@ export default function CredentialManagement() {
                         {mailStatus === 'queued' && (
                           <span className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 px-2.5 py-1 rounded-full text-xs font-semibold">
                             <span className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse"></span>
-                            Email Dispatched
+                            Dispatched
                           </span>
                         )}
                         {mailStatus === 'saved' && (
@@ -393,7 +576,7 @@ export default function CredentialManagement() {
                         {mailStatus === 'idle' && (
                           <span className="inline-flex items-center gap-1 bg-gray-50 text-gray-500 px-2.5 py-1 rounded-full text-xs font-semibold">
                             <span className="h-1.5 w-1.5 rounded-full bg-gray-400"></span>
-                            Not Sent Yet
+                            Ready
                           </span>
                         )}
                       </td>
@@ -425,24 +608,38 @@ export default function CredentialManagement() {
                             </button>
                           </div>
                         ) : (
-                          <div className="flex items-center justify-end gap-2">
-                            {/* Send Credentials Button */}
+                          <div className="flex items-center justify-end gap-1.5">
+                            {/* Fast Auto-Gen & Send Button */}
+                            <button
+                              onClick={() => handleQuickAutoSend(row)}
+                              disabled={isSending}
+                              className="inline-flex items-center gap-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs font-bold px-2.5 py-1.5 rounded-lg transition-colors disabled:opacity-50"
+                              title="Auto-generate password and email credentials directly to user/parent"
+                            >
+                              {isSending ? (
+                                <span className="w-3 h-3 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin"></span>
+                              ) : (
+                                <span>⚡ Auto-Gen & Send</span>
+                              )}
+                            </button>
+
+                            {/* Custom Send Credentials Button */}
                             <button
                               onClick={() => openSendModal(row)}
                               disabled={isSending}
-                              className="inline-flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors shadow-xs disabled:opacity-50"
-                              title="Send login credentials to user's email"
+                              className="inline-flex items-center gap-1 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-semibold px-2.5 py-1.5 rounded-lg transition-colors disabled:opacity-50"
+                              title="Open modal to choose or customize credentials before sending"
                             >
                               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                               </svg>
-                              <span>Send Credentials</span>
+                              <span>Send</span>
                             </button>
 
                             {/* Edit Button */}
                             <button
                               onClick={() => startEdit(row)}
-                              className="text-gray-700 hover:text-blue-600 text-xs font-semibold bg-gray-100 hover:bg-gray-200 px-3 py-1.5 rounded-lg transition-all"
+                              className="text-gray-700 hover:text-blue-600 text-xs font-semibold bg-gray-100 hover:bg-gray-200 px-2.5 py-1.5 rounded-lg transition-all"
                             >
                               Edit
                             </button>
@@ -460,7 +657,7 @@ export default function CredentialManagement() {
 
       </div>
 
-      {/* Modal: Send Credentials to Staff / User */}
+      {/* Modal: Send Credentials to Staff / User / Student */}
       {sendModalOpen && sendTargetUser && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs">
           <div className="bg-white rounded-2xl shadow-xl border border-gray-100 max-w-md w-full overflow-hidden animate-in fade-in zoom-in-95 duration-150">
@@ -475,7 +672,7 @@ export default function CredentialManagement() {
                 </div>
                 <div>
                   <h3 className="font-bold text-base leading-tight">Send Credentials</h3>
-                  <p className="text-xs text-blue-100">Send login details directly to recipient email</p>
+                  <p className="text-xs text-blue-100">Deliver login details directly to recipient email</p>
                 </div>
               </div>
               <button
@@ -503,9 +700,15 @@ export default function CredentialManagement() {
                   </span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-gray-500">Destination Email (Login ID):</span>
+                  <span className="text-gray-500">Student Login ID:</span>
                   <span className="font-mono text-gray-800 font-semibold">{sendTargetUser.email}</span>
                 </div>
+                {sendTargetUser.role === 'student' && sendTargetUser.linkedStudent?.parent_email && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-500">Destination (Parent Email):</span>
+                    <span className="font-mono text-emerald-700 font-semibold">{sendTargetUser.linkedStudent.parent_email}</span>
+                  </div>
+                )}
                 {sendTargetUser.phone && (
                   <div className="flex justify-between items-center">
                     <span className="text-gray-500">Contact Phone:</span>

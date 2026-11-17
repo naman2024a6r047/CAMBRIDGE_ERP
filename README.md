@@ -178,19 +178,23 @@ The platform provides role-based access control (RBAC) with granular data isolat
 
 ---
 
-### 5. Staff Credential Management & Instant Fast Dispatch
+### 5. Credential Management, Auto Password Generation & Instant Fast Dispatch
 
-- **Dedicated Admin Credential Dashboard (`/admin/credentials`)**:
-  - Complete visibility over all staff accounts (Teachers, Fee Collectors, Staff, Admins).
-  - Search by name, email, or role with live filtering.
-- **Inline Credential Editing & Password Reset**:
-  - Admins can instantly update usernames or set new passwords directly from the UI.
-  - All passwords are encrypted immediately using bcrypt (salt cost 12).
-- **One-Click Temporary Password Generator**:
-  - Modal with built-in cryptographically strong random password generator (alphanumeric with symbols) for rapid onboarding.
-- **Instant "Send Credentials" Button with 2.5s Race Timeout**:
-  - Admins can click "Send Credentials" to dispatch login details directly to the staff member's email address.
-  - **Non-Blocking Background Dispatch**: Implements an asynchronous 2.5-second race timeout. If SMTP delivery experiences network latency, the UI immediately returns success to the administrator while the mailer safely completes in the background.
+- **Dedicated Credential Dashboard (`/admin/credentials` & `/fc/credentials`)**:
+  - Full visibility over Teachers, Fee Collectors, and Student accounts.
+  - Role-specific tabs for Teachers, Fee Collectors, and Students.
+  - Live search by name, student ID, parent email, login email, or phone.
+  - Class filter pills for Students (`All Classes`, `Nursery` through `Class 8th`).
+- **Automatic Password Generation & Email Dispatch for Students**:
+  - **1-Click "⚡ Auto-Gen & Send"**: Instantly generates a high-entropy temporary password (`makeTemporaryPassword()`) and dispatches login instructions directly to the parent's registered email (`parent_email`).
+  - **Inline "🎲 Auto-Gen"**: Allows admins to generate a random secure password with one click while editing passwords inline.
+  - **Batch Auto-Generate & Email Dispatch**: One-click **"⚡ Auto-Gen & Email All"** button allows administrators and fee collectors to auto-generate temporary passwords and email credentials in bulk for all students in a selected class.
+  - **Student Creation & Admission Auto-Dispatch**: When a student is created and approved (or when an online admission request is approved in `/api/fc/admission-requests/:id`), a temporary password is automatically generated and an email containing login credentials is automatically dispatched to the student's/parent's email.
+- **Smart Email Routing for Students**:
+  - Student login identifiers (e.g. `student-ICS-2026-0001@cambridge-erp.ktwr.in`) are preserved for logging into the portal, while the actual email delivery is intelligently routed to the student's registered parent email address (`linkedStudent.parent_email`).
+- **Instant "Send Credentials" with 2.5s Race Timeout**:
+  - Admins can customize the password, choose auto-generation, or keep the existing password.
+  - **Non-Blocking Background Dispatch**: Implements an asynchronous 2.5-second race timeout. If SMTP delivery experiences network latency, the UI immediately returns a success response to the administrator while the mailer safely completes in the background.
 
 ---
 
@@ -493,10 +497,10 @@ npm test --prefix server
 | **9** | **Fee Collection Robustness** | `feeCollectionRobustness.test.js` | **4** | Auto-reconciliation of zero-amount records, cross-year multi-month collections (e.g. Nov 2026 - Apr 2027), payment mode safety. |
 | **10**| **Custom Targeted Notices** | `customNotifications.test.js` | **7** | Role-targeted broadcasts (Teachers Only vs Students Only), Class/Section specific targeting, subcategories, priority queries. |
 | **11**| **User & Teacher Access RBAC** | `studentsAndTeachersAccess.test.js` | **5** | Admin alias support (`superadmin`, `super_admin`), RBAC boundary enforcement, model schema validation. |
-| **12**| **Credential Dispatch** | `credentialManagement.test.js` | **5** | Admin credential updates, bcrypt hashing, temporary password generator, non-blocking background email dispatch. |
+| **12**| **Credential Dispatch** | `credentialManagement.test.js` | **7** | Admin credential updates, bcrypt hashing, temporary password generator, student auto password generation, parent email routing, batch auto password generation, and non-blocking background email dispatch. |
 | **13**| **Admin Datesheet Declaration**| `adminDatesheets.test.js` | **7** | Direct datesheet creation by Admin, All Sections support, multi-subject timetable editing, instant declaration & broadcast alerts, all-teacher visibility, and student class alias normalization. |
 
-**Total**: **95 / 95 Passed (100% Success Rate)**
+**Total**: **97 / 97 Passed (100% Success Rate)**
 
 ---
 
@@ -520,10 +524,13 @@ npm test --prefix server
 - `PUT /api/datesheets/:id` — Update schedule slots or declare/publish datesheet.
 - `DELETE /api/datesheets/:id` — Delete draft or obsolete datesheet.
 
-### Staff Credential Management (`server/routes/credentials.js`)
-- `GET /api/credentials` — List all staff accounts with login usernames and email delivery status (Admin only).
+### Credential Management (`server/routes/credentials.js`)
+- `GET /api/credentials/teachers` — List all teacher accounts with login usernames and email delivery status (Admin only).
+- `GET /api/credentials/fee-collectors` — List all fee collector accounts (Admin only).
+- `GET /api/credentials/students` — List all student accounts with linked student details and class filter (Admin & Fee Collector).
 - `PUT /api/credentials/:id` — Update login username or reset password with instant bcrypt hashing.
-- `POST /api/credentials/:id/send` — Generate temporary password and dispatch credentials to staff email with non-blocking race timeout.
+- `POST /api/credentials/:id/send` — Generate temporary password and dispatch credentials to staff or student parent email with non-blocking race timeout.
+- `POST /api/credentials/students/batch-auto-send` — Auto-generate temporary passwords and email credentials in batch for an entire class or student list.
 
 ### Targeted School Notifications (`server/routes/notifications.js`)
 - `GET /api/notifications` — Fetch announcements filtered by role, class, or subcategory.
