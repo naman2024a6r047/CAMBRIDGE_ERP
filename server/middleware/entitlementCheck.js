@@ -22,6 +22,10 @@ async function entitlementCheck(req, res, next) {
     path.startsWith('/api/v1/connector') ||
     path.startsWith('/api/health') ||
     path.startsWith('/api/db-check') ||
+    path.startsWith('/api/public/admission') ||
+    path.startsWith('/api/admission') ||
+    path.startsWith('/api/public-admission') ||
+    path.startsWith('/api/settings') ||
     path === '/api/auth/login' ||
     path === '/api/auth/logout' ||
     path === '/api/auth/csrf-token'

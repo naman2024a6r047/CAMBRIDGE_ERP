@@ -259,26 +259,72 @@ export default function PublicAdmissionForm() {
             </div>
           </div>
 
-          <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-xl border border-slate-200 text-xs font-medium">
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-xl border border-slate-200 text-xs font-medium">
+              <button
+                type="button"
+                onClick={() => { setActiveTab('apply'); }}
+                className={`px-3 py-1.5 rounded-lg transition-all ${activeTab === 'apply' ? 'bg-white text-blue-700 shadow-xs font-bold' : 'text-slate-600 hover:text-slate-900'}`}
+              >
+                New Application
+              </button>
+              <button
+                type="button"
+                onClick={() => { setActiveTab('status'); }}
+                className={`px-3 py-1.5 rounded-lg transition-all ${activeTab === 'status' ? 'bg-white text-blue-700 shadow-xs font-bold' : 'text-slate-600 hover:text-slate-900'}`}
+              >
+                Check Status
+              </button>
+            </div>
+
             <button
               type="button"
-              onClick={() => { setActiveTab('apply'); }}
-              className={`px-3 py-1.5 rounded-lg transition-all ${activeTab === 'apply' ? 'bg-white text-blue-700 shadow-xs font-bold' : 'text-slate-600 hover:text-slate-900'}`}
+              onClick={() => {
+                const url = `${window.location.origin}/admission`;
+                navigator.clipboard.writeText(url);
+                toast.success('Public admission link copied to clipboard!');
+              }}
+              className="px-2.5 py-1.5 rounded-xl text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 flex items-center gap-1 transition-colors cursor-pointer"
+              title="Copy public link to share"
             >
-              New Application
+              <span>📋</span>
+              <span className="hidden sm:inline">Share Link</span>
             </button>
-            <button
-              type="button"
-              onClick={() => { setActiveTab('status'); }}
-              className={`px-3 py-1.5 rounded-lg transition-all ${activeTab === 'status' ? 'bg-white text-blue-700 shadow-xs font-bold' : 'text-slate-600 hover:text-slate-900'}`}
+
+            <a
+              href="/login"
+              className="hidden md:inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-medium text-slate-500 hover:text-slate-900 transition-colors"
             >
-              Check Status
-            </button>
+              Login Portal →
+            </a>
           </div>
         </div>
       </nav>
 
       <main className="max-w-4xl mx-auto px-4 mt-6">
+        {/* Public Notice Banner */}
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-2 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200/80 rounded-2xl px-4 py-2.5 text-xs text-blue-900 shadow-xs">
+          <div className="flex items-center gap-2">
+            <span className="flex h-2 w-2 relative">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+            </span>
+            <span className="font-bold">Public Admission Form</span>
+            <span className="text-slate-400">•</span>
+            <span className="text-slate-600">Open for all parents & students (No login or credentials required)</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              const url = `${window.location.origin}/admission`;
+              navigator.clipboard.writeText(url);
+              toast.success('Public link copied! You can share it via WhatsApp or SMS.');
+            }}
+            className="text-blue-700 hover:text-blue-900 font-semibold underline cursor-pointer"
+          >
+            📋 Copy Share Link
+          </button>
+        </div>
         {/* Check Status Tab */}
         {activeTab === 'status' && (
           <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm max-w-xl mx-auto">

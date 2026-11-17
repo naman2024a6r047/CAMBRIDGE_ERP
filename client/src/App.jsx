@@ -76,9 +76,18 @@ export default function App() {
           <Routes>
             <Route path="/login" element={<LoginPage />} />
             <Route path="/suspended" element={<SuspensionPage />} />
+            {/* Public Unauthenticated Routes (100% Open - No Login / Auth Required) */}
             <Route path="/admission" element={<PublicAdmissionForm />} />
+            <Route path="/admission/*" element={<PublicAdmissionForm />} />
             <Route path="/admission-form" element={<PublicAdmissionForm />} />
+            <Route path="/admissions" element={<PublicAdmissionForm />} />
             <Route path="/apply" element={<PublicAdmissionForm />} />
+            <Route path="/public/admission" element={<PublicAdmissionForm />} />
+            <Route path="/public-admission" element={<PublicAdmissionForm />} />
+            <Route path="/new-admission" element={<PublicAdmissionForm />} />
+            <Route path="/online-admission" element={<PublicAdmissionForm />} />
+            <Route path="/fc/admission" element={<PublicAdmissionForm />} />
+            <Route path="/status/:form_no" element={<PublicAdmissionForm />} />
             <Route path="/" element={<Navigate to="/login" replace />} />
 
           <Route

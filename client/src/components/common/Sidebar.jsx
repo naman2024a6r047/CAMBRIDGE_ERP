@@ -139,7 +139,7 @@ const navConfig = {
       items: [
         { icon: 'dashboard', label: 'Dashboard', to: '/fc' },
         { icon: 'search-collect', label: 'Search & Collect', to: '/fc/collect' },
-        { icon: 'new-admission', label: 'New Admission', to: '/fc/admission' },
+        { icon: 'new-admission', label: 'Public Admission Form', to: '/admission' },
         { icon: 'credentials', label: 'Credentials', to: '/fc/credentials' },
         { icon: 'student', label: 'Admissions & Approvals', to: '/fc/admissions' },
         { icon: 'bulk-upload', label: 'Bulk Admission', to: '/fc/bulk-upload' },
