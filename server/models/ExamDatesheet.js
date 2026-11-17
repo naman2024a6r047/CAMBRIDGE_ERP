@@ -6,7 +6,7 @@ const ExamDatesheet = sequelize.define('ExamDatesheet', {
   exam_name:             { type: DataTypes.STRING(100), allowNull: false },
   exam_type:             { type: DataTypes.ENUM('unit_test', 'half_yearly', 'annual', 'assessment', 'pre_board', 'other'), defaultValue: 'unit_test' },
   class:                 { type: DataTypes.STRING(20), allowNull: false },
-  section:               { type: DataTypes.STRING(5), allowNull: false },
+  section:               { type: DataTypes.STRING(20), allowNull: false },
   session_id:            { type: DataTypes.INTEGER, allowNull: true },
   created_by_teacher_id: { type: DataTypes.INTEGER, allowNull: true },
   created_by_user_id:    { type: DataTypes.INTEGER, allowNull: false },

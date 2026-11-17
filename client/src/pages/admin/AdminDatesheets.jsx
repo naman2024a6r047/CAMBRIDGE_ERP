@@ -48,6 +48,7 @@ export default function AdminDatesheets() {
 
   const [statusFilter, setStatusFilter] = useState('all');
   const [classFilter, setClassFilter] = useState('all');
+  const [sectionFilter, setSectionFilter] = useState('all');
   const [examQuery, setExamQuery] = useState('');
   const [busyId, setBusyId] = useState(null);
   const [bulkBusy, setBulkBusy] = useState(false);
@@ -60,7 +61,7 @@ export default function AdminDatesheets() {
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [editorId, setEditorId] = useState(null);
   const [editorClass, setEditorClass] = useState(CLASSES[0] || 'Nursery');
-  const [editorSection, setEditorSection] = useState('A');
+  const [editorSection, setEditorSection] = useState('All');
   const [editorExamName, setEditorExamName] = useState('');
   const [editorExamType, setEditorExamType] = useState('half_yearly');
   const [editorInstructions, setEditorInstructions] = useState('');
@@ -90,16 +91,27 @@ export default function AdminDatesheets() {
     return ['all', ...CLASSES];
   }, []);
 
+  const distinctSections = useMemo(() => {
+    return ['all', ...SECTIONS];
+  }, []);
+
   const filteredDatesheets = useMemo(() => {
     return datesheets.filter((ds) => {
       if (statusFilter !== 'all' && ds.status !== statusFilter) return false;
       if (classFilter !== 'all' && ds.class !== classFilter) return false;
+      if (sectionFilter !== 'all') {
+        const matchesSection =
+          ds.section === sectionFilter ||
+          (sectionFilter === 'All' && ['all', 'ALL', 'All'].includes(ds.section)) ||
+          ['all', 'ALL', 'All'].includes(ds.section);
+        if (!matchesSection) return false;
+      }
       if (examQuery.trim() && !String(ds.exam_name || '').toLowerCase().includes(examQuery.trim().toLowerCase())) {
         return false;
       }
       return true;
     });
-  }, [datesheets, statusFilter, classFilter, examQuery]);
+  }, [datesheets, statusFilter, classFilter, sectionFilter, examQuery]);
 
   // Compute class readiness overview for all school classes before declaration
   const classCoverageRows = useMemo(() => {
@@ -107,7 +119,7 @@ export default function AdminDatesheets() {
       const classSheets = datesheets.filter(
         (d) =>
           d.class === cm.class &&
-          d.section === cm.section &&
+          (d.section === cm.section || ['all', 'ALL', 'All'].includes(d.section)) &&
           (!examQuery.trim() || String(d.exam_name || '').toLowerCase().includes(examQuery.trim().toLowerCase()))
       );
       const latest = classSheets[0] || null;
@@ -123,7 +135,7 @@ export default function AdminDatesheets() {
   const openCreateModal = () => {
     setEditorId(null);
     setEditorClass(classFilter !== 'all' ? classFilter : (CLASSES[0] || 'Nursery'));
-    setEditorSection('A');
+    setEditorSection(sectionFilter !== 'all' ? sectionFilter : 'All');
     setEditorExamName('');
     setEditorExamType('half_yearly');
     setEditorInstructions('');
@@ -134,7 +146,7 @@ export default function AdminDatesheets() {
   const openEditModal = (ds) => {
     setEditorId(ds.id);
     setEditorClass(ds.class || CLASSES[0]);
-    setEditorSection(ds.section || 'A');
+    setEditorSection(ds.section || 'All');
     setEditorExamName(ds.exam_name || '');
     setEditorExamType(ds.exam_type || 'half_yearly');
     setEditorInstructions(ds.instructions || '');
@@ -170,12 +182,14 @@ export default function AdminDatesheets() {
   };
 
   const handleLoadClassSubjects = async () => {
-    if (!editorClass || !editorSection) return;
+    if (!editorClass) return;
     setLoadingSubjects(true);
     try {
-      const res = await API.get('/class-subjects', {
-        params: { class: editorClass, section: editorSection },
-      });
+      const params = { class: editorClass };
+      if (editorSection && !['all', 'ALL', 'All'].includes(editorSection)) {
+        params.section = editorSection;
+      }
+      const res = await API.get('/class-subjects', { params });
       const names = [...new Set((res.data || []).map((cs) => cs.subject).filter(Boolean))];
       if (names.length === 0) {
         toast('No pre-configured subjects found for this class. You can add subjects manually.', { icon: 'ℹ️' });
@@ -191,7 +205,9 @@ export default function AdminDatesheets() {
           syllabus_notes: '',
         }))
       );
-      toast.success(`Loaded ${names.length} subject(s) for ${editorClass} - Section ${editorSection}`);
+      toast.success(
+        `Loaded ${names.length} subject(s) for ${editorClass}${params.section ? ` - Section ${params.section}` : ' (All Sections)'}`
+      );
     } catch {
       toast.error('Could not load subjects for this class.');
     } finally {
@@ -285,9 +301,10 @@ export default function AdminDatesheets() {
   };
 
   const handleDeclare = async (ds) => {
+    const secDisplay = ['all', 'ALL', 'All'].includes(ds.section) ? 'All Sections' : `Section ${ds.section}`;
     if (
       !window.confirm(
-        `Declare "${ds.exam_name}" datesheet for ${ds.class} - Section ${ds.section}? This will immediately notify all students, parents, and teachers.`
+        `Declare "${ds.exam_name}" datesheet for ${ds.class} - ${secDisplay}? This will immediately notify all students, parents, and teachers.`
       )
     ) {
       return;
@@ -305,9 +322,10 @@ export default function AdminDatesheets() {
   };
 
   const handleDelete = async (ds) => {
+    const secDisplay = ['all', 'ALL', 'All'].includes(ds.section) ? 'All Sections' : `Section ${ds.section}`;
     if (
       !window.confirm(
-        `Are you sure you want to delete "${ds.exam_name}" datesheet for ${ds.class} - Section ${ds.section}? This action cannot be undone.`
+        `Are you sure you want to delete "${ds.exam_name}" datesheet for ${ds.class} - ${secDisplay}? This action cannot be undone.`
       )
     ) {
       return;
@@ -509,6 +527,19 @@ export default function AdminDatesheets() {
               </option>
             ))}
           </select>
+
+          <select
+            value={sectionFilter}
+            onChange={(e) => setSectionFilter(e.target.value)}
+            className="px-4 py-2.5 rounded-2xl border border-slate-200 text-xs font-bold bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-purple-200"
+          >
+            <option value="all">All Sections</option>
+            {SECTIONS.map((sec) => (
+              <option key={sec} value={sec}>
+                Section {sec}
+              </option>
+            ))}
+          </select>
         </div>
       </div>
 
@@ -545,7 +576,7 @@ export default function AdminDatesheets() {
                     <div className="flex items-center gap-2 flex-wrap">
                       <h3 className="text-base font-extrabold text-slate-800">{ds.exam_name}</h3>
                       <span className="text-xs font-extrabold px-3 py-1 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
-                        {ds.class} — Section {ds.section}
+                        {ds.class} — {['all', 'ALL', 'All'].includes(ds.section) ? 'All Sections' : `Section ${ds.section}`}
                       </span>
                       <span className={`text-[10px] font-bold uppercase px-2.5 py-1 rounded-full border ${STATUS_BADGE[ds.status] || STATUS_BADGE.draft}`}>
                         {ds.status}
@@ -712,6 +743,7 @@ export default function AdminDatesheets() {
                   onChange={(e) => setEditorSection(e.target.value)}
                   className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-600"
                 >
+                  <option value="All">All Sections</option>
                   {SECTIONS.map((sec) => (
                     <option key={sec} value={sec}>
                       Section {sec}
@@ -934,7 +966,7 @@ export default function AdminDatesheets() {
               Return Datesheet for Revision
             </h3>
             <p className="text-xs text-slate-500">
-              Provide feedback for {rejectTarget.class} - Section {rejectTarget.section} ({rejectTarget.exam_name}).
+              Provide feedback for {rejectTarget.class} - {['all', 'ALL', 'All'].includes(rejectTarget.section) ? 'All Sections' : `Section ${rejectTarget.section}`} ({rejectTarget.exam_name}).
             </p>
             <textarea
               rows={3}

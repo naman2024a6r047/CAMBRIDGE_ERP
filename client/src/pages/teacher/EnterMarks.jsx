@@ -92,14 +92,15 @@ export default function EnterMarks() {
   };
 
   useEffect(() => {
-    if (!cls || !section) {
+    if (!cls) {
       setStudents([]);
       setResults([]);
       return;
     }
     
     setLoadingStudents(true);
-    API.get(`/students?class=${encodeURIComponent(cls)}&section=${encodeURIComponent(section)}`)
+    const secParam = section ? `&section=${encodeURIComponent(section)}` : '';
+    API.get(`/students?class=${encodeURIComponent(cls)}${secParam}`)
       .then(r => {
         const list = r.data.students || [];
         setStudents(list);
@@ -110,7 +111,7 @@ export default function EnterMarks() {
       .catch(() => toast.error('Failed to load students'))
       .finally(() => setLoadingStudents(false));
 
-    API.get(`/results/class?class=${encodeURIComponent(cls)}&section=${encodeURIComponent(section)}`)
+    API.get(`/results/class?class=${encodeURIComponent(cls)}${secParam}`)
       .then(r => setResults(r.data || []))
       .catch(() => {});
   }, [cls, section]);
@@ -245,8 +246,9 @@ export default function EnterMarks() {
               onChange={e => setSection(e.target.value)}
               className={f}
             >
+              <option value="">All Sections</option>
               {SECTIONS.map(s => (
-                <option key={s} value={s}>{s}</option>
+                <option key={s} value={s}>Section {s}</option>
               ))}
             </select>
           </div>

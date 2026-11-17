@@ -6,7 +6,7 @@
 [![Database](https://img.shields.io/badge/Database-MySQL%20%7C%20SQLite3-orange.svg)](https://sequelize.org/)
 [![Color Theme](https://img.shields.io/badge/Theme-Royal%20Blue%20%26%20Golden%20Yellow-1E3A8A.svg)](#-institution-branding--color-theme)
 [![Security Status](https://img.shields.io/badge/Security-Enterprise%20WAF%20Hardened-success.svg)](#-cybersecurity-hardening--active-waf)
-[![Automated Tests](https://img.shields.io/badge/Automated%20Tests-92%2F92%20Passing-brightgreen.svg)](#-automated-testing-suites)
+[![Automated Tests](https://img.shields.io/badge/Automated%20Tests-93%2F93%20Passing-brightgreen.svg)](#-automated-testing-suites)
 [![License](https://img.shields.io/badge/License-ISC-purple.svg)](LICENSE)
 
 A modern, production-grade, full-stack **Enterprise Resource Planning (ERP)** platform tailored specifically for **International Cambridge School Kishtwar**, multi-branch academies, and institutional educational networks.
@@ -140,6 +140,10 @@ The platform provides role-based access control (RBAC) with granular data isolat
 - **Universal Datesheet Management (`/admin/datesheets`)**:
   - School Administrators and Super Admins have full authority to create, edit, approve, and declare exam datesheets for **any canonical class** (Nursery through Class 8).
   - Dynamic timetable builder: add, edit, or delete exam slots (exam date, start time, end time, subject, room number, max marks).
+  - **"All Sections" & Multi-Section Support**:
+    - Section selector supports **"All Sections"** (`All`) as well as individual sections (`Section A`, `Section B`, `Section C`, `Section D`).
+    - Datesheets declared for **All Sections** immediately apply across the entire grade level and appear seamlessly on student and parent portals regardless of student section assignment.
+    - Top control bar includes an instant **Section Filter** (`All Sections`, `Section A`, `Section B`, etc.) alongside the Class filter.
 - **Three-Tier Lifecycle**:
   - `draft`: Work-in-progress schedule saved by admin or teacher.
   - `approved`: Schedule reviewed and verified.
@@ -448,7 +452,7 @@ For production environments on cPanel, shared Linux hosting, or VPS deployments,
 
 ## 🧪 Automated Testing Suites
 
-The platform includes **92 automated tests** across **13 comprehensive test suites** verifying every tier of the application:
+The platform includes **93 automated tests** across **13 comprehensive test suites** verifying every tier of the application:
 
 ```bash
 # Run all 13 test suites from root
@@ -474,9 +478,9 @@ npm test --prefix server
 | **10**| **Custom Targeted Notices** | `customNotifications.test.js` | **7** | Role-targeted broadcasts (Teachers Only vs Students Only), Class/Section specific targeting, subcategories, priority queries. |
 | **11**| **User & Teacher Access RBAC** | `studentsAndTeachersAccess.test.js` | **5** | Admin alias support (`superadmin`, `super_admin`), RBAC boundary enforcement, model schema validation. |
 | **12**| **Credential Dispatch** | `credentialManagement.test.js` | **5** | Admin credential updates, bcrypt hashing, temporary password generator, non-blocking background email dispatch. |
-| **13**| **Admin Datesheet Declaration**| `adminDatesheets.test.js` | **4** | Direct datesheet creation by Admin, multi-subject timetable editing, instant declaration & official broadcast alerts. |
+| **13**| **Admin Datesheet Declaration**| `adminDatesheets.test.js` | **5** | Direct datesheet creation by Admin, All Sections support, multi-subject timetable editing, instant declaration & broadcast alerts. |
 
-**Total**: **92 / 92 Passed (100% Success Rate)**
+**Total**: **93 / 93 Passed (100% Success Rate)**
 
 ---
 

@@ -147,7 +147,48 @@ async function runAdminDatesheetsTests() {
   assert.strictEqual(studentVisible[0].entries.length, 3);
   console.log('✅ PASS');
 
+  // TEST 5: Admin creates datesheet for 'All' sections
+  process.stdout.write("  [TEST] 5. Admin creates datesheet with 'All' sections -> visible across all sections ... ");
+  const allSecDatesheet = await ExamDatesheet.create({
+    exam_name: 'Annual Board Assessment 2027',
+    exam_type: 'annual',
+    class: 'Class 8',
+    section: 'All',
+    session_id: session.id,
+    created_by_user_id: admin.id,
+    status: 'declared',
+    instructions: 'All sections must report to Central Examination Hall.',
+  });
+
+  await ExamDatesheetEntry.create({
+    datesheet_id: allSecDatesheet.id,
+    subject: 'Science',
+    exam_date: '2027-03-10',
+    start_time: '10:00',
+    end_time: '13:00',
+    room: 'Main Auditorium',
+  });
+
+  const { Op } = require('sequelize');
+  const studentSecBVisible = await ExamDatesheet.findAll({
+    where: {
+      class: 'Class 8',
+      status: 'declared',
+      [Op.or]: [
+        { section: 'B' },
+        { section: { [Op.in]: ['All', 'ALL', 'all', 'All Sections'] } },
+      ],
+    },
+    include: [{ model: ExamDatesheetEntry, as: 'entries' }],
+  });
+
+  assert.ok(studentSecBVisible.some((d) => d.id === allSecDatesheet.id));
+  assert.strictEqual(allSecDatesheet.section, 'All');
+  console.log('✅ PASS');
+
   // Clean up
+  await ExamDatesheetEntry.destroy({ where: { datesheet_id: allSecDatesheet.id } });
+  await allSecDatesheet.destroy();
   await ExamDatesheetEntry.destroy({ where: { datesheet_id: draftDatesheet.id } });
   await draftDatesheet.destroy();
   if (notif?.id) await notif.destroy();

@@ -147,6 +147,9 @@ router.post('/', protect, authorize('teacher', 'admin', 'admin2'), async (req, r
       await t.rollback();
       return res.status(400).json({ message: 'Exam name, class, and section are required.' });
     }
+    const normSection = ['all', 'ALL', 'All', 'All Sections'].includes(String(section).trim())
+      ? 'All'
+      : String(section).trim();
     if (!Array.isArray(entries) || entries.length === 0) {
       await t.rollback();
       return res.status(400).json({ message: 'At least one subject exam schedule entry is required.' });
@@ -162,11 +165,11 @@ router.post('/', protect, authorize('teacher', 'admin', 'admin2'), async (req, r
     }
 
     if (req.user.role === 'teacher') {
-      const ok = await verifyTeacherIncharge(req.user.linked_teacher_id, cls.trim(), section.trim());
+      const ok = await verifyTeacherIncharge(req.user.linked_teacher_id, cls.trim(), normSection);
       if (!ok) {
         await t.rollback();
         return res.status(403).json({
-          message: `Only the assigned Class Incharge can create datesheets for ${cls} - Section ${section}.`,
+          message: `Only the assigned Class Incharge can create datesheets for ${cls} - Section ${normSection}.`,
         });
       }
     }
@@ -193,7 +196,7 @@ router.post('/', protect, authorize('teacher', 'admin', 'admin2'), async (req, r
         exam_name: exam_name.trim(),
         exam_type,
         class: cls.trim(),
-        section: section.trim(),
+        section: normSection,
         session_id: effSessionId,
         created_by_teacher_id: req.user.linked_teacher_id || null,
         created_by_user_id: req.user.id,
@@ -230,10 +233,11 @@ router.post('/', protect, authorize('teacher', 'admin', 'admin2'), async (req, r
         const firstDate = sorted.entries?.[0]?.exam_date;
         const lastDate = sorted.entries?.[sorted.entries.length - 1]?.exam_date;
         const rangeText = firstDate && lastDate && firstDate !== lastDate ? `${firstDate} to ${lastDate}` : (firstDate || '');
+        const secLabel = normSection === 'All' ? 'All Sections' : `Section ${normSection}`;
 
         await Notification.create({
-          title: `Exam Datesheet Declared: ${datesheet.exam_name} (${datesheet.class} - ${datesheet.section})`,
-          message: `The ${datesheet.exam_name} examination datesheet for ${datesheet.class} - Section ${datesheet.section}${rangeText ? ` (${rangeText})` : ''} has been officially declared. Check the Upcoming Exams section for your full schedule.`,
+          title: `Exam Datesheet Declared: ${datesheet.exam_name} (${datesheet.class} - ${secLabel})`,
+          message: `The ${datesheet.exam_name} examination datesheet for ${datesheet.class} - ${secLabel}${rangeText ? ` (${rangeText})` : ''} has been officially declared. Check the Upcoming Exams section for your full schedule.`,
           type: 'exam_datesheet',
           recipient_type: 'all',
           recipient_role: 'all',
@@ -282,6 +286,8 @@ router.put('/:id', protect, authorize('teacher', 'admin', 'admin2'), async (req,
       exam_type,
       instructions,
       entries,
+      class: cls,
+      section,
       action, // optional: 'draft' | 'submit'
     } = req.body;
 
@@ -306,6 +312,19 @@ router.put('/:id', protect, authorize('teacher', 'admin', 'admin2'), async (req,
     let declaredNow = false;
     const now = new Date();
 
+    let updatedClass = datesheet.class;
+    let updatedSection = datesheet.section;
+    if (isAdmin) {
+      if (cls !== undefined && String(cls).trim()) {
+        updatedClass = String(cls).trim();
+      }
+      if (section !== undefined && String(section).trim()) {
+        updatedSection = ['all', 'ALL', 'All', 'All Sections'].includes(String(section).trim())
+          ? 'All'
+          : String(section).trim();
+      }
+    }
+
     if (action === 'submit') {
       nextStatus = 'submitted';
       clearReview = true;
@@ -324,6 +343,8 @@ router.put('/:id', protect, authorize('teacher', 'admin', 'admin2'), async (req,
       {
         exam_name: exam_name !== undefined ? String(exam_name).trim() : datesheet.exam_name,
         exam_type: exam_type !== undefined ? exam_type : datesheet.exam_type,
+        class: updatedClass,
+        section: updatedSection,
         instructions: instructions !== undefined ? (instructions ? String(instructions).trim() : null) : datesheet.instructions,
         status: nextStatus,
         ...(clearReview ? { review_notes: null, reviewed_by: null, reviewed_at: null } : {}),
@@ -368,9 +389,13 @@ router.put('/:id', protect, authorize('teacher', 'admin', 'admin2'), async (req,
         const lastDate = sorted.entries?.[sorted.entries.length - 1]?.exam_date;
         const rangeText = firstDate && lastDate && firstDate !== lastDate ? `${firstDate} to ${lastDate}` : (firstDate || '');
 
+        const secLabel = ['all', 'ALL', 'All', 'All Sections'].includes(datesheet.section)
+          ? 'All Sections'
+          : `Section ${datesheet.section}`;
+
         await Notification.create({
-          title: `Exam Datesheet Declared: ${datesheet.exam_name} (${datesheet.class} - ${datesheet.section})`,
-          message: `The ${datesheet.exam_name} examination datesheet for ${datesheet.class} - Section ${datesheet.section}${rangeText ? ` (${rangeText})` : ''} has been officially declared. Check the Upcoming Exams section for your full schedule.`,
+          title: `Exam Datesheet Declared: ${datesheet.exam_name} (${datesheet.class} - ${secLabel})`,
+          message: `The ${datesheet.exam_name} examination datesheet for ${datesheet.class} - ${secLabel}${rangeText ? ` (${rangeText})` : ''} has been officially declared. Check the Upcoming Exams section for your full schedule.`,
           type: 'exam_datesheet',
           recipient_type: 'all',
           recipient_role: 'all',
@@ -416,7 +441,7 @@ router.delete('/:id', protect, authorize('teacher', 'admin', 'admin2'), async (r
 router.get('/admin', protect, authorize('admin', 'admin2'), async (req, res) => {
   try {
     res.set('Cache-Control', 'no-store');
-    const { status, class: cls, exam_name } = req.query;
+    const { status, class: cls, section, exam_name } = req.query;
     const where = {};
     if (status && status !== 'all') where.status = status;
     if (cls && cls !== 'all') where.class = cls;
@@ -473,6 +498,10 @@ router.get('/admin', protect, authorize('admin', 'admin2'), async (req, res) => 
       .filter((d) => {
         if (status && status !== 'all' && d.status !== status) return false;
         if (cls && cls !== 'all' && d.class !== cls) return false;
+        if (section && section !== 'all') {
+          const match = d.section === section || ['all', 'ALL', 'All', 'All Sections'].includes(d.section);
+          if (!match) return false;
+        }
         if (exam_name && !d.exam_name.toLowerCase().includes(exam_name.trim().toLowerCase())) return false;
         return true;
       })
@@ -575,9 +604,13 @@ router.put('/:id/declare', protect, authorize('admin', 'admin2'), async (req, re
       const lastDate = sorted.entries[sorted.entries.length - 1]?.exam_date;
       const rangeText = firstDate && lastDate && firstDate !== lastDate ? `${firstDate} to ${lastDate}` : (firstDate || '');
 
+      const secLabel = ['all', 'ALL', 'All', 'All Sections'].includes(datesheet.section)
+        ? 'All Sections'
+        : `Section ${datesheet.section}`;
+
       await Notification.create({
-        title: `Exam Datesheet Declared: ${datesheet.exam_name} (${datesheet.class} - ${datesheet.section})`,
-        message: `The ${datesheet.exam_name} examination datesheet for ${datesheet.class} - Section ${datesheet.section}${rangeText ? ` (${rangeText})` : ''} has been officially declared. Check the Upcoming Exams section for your full schedule.`,
+        title: `Exam Datesheet Declared: ${datesheet.exam_name} (${datesheet.class} - ${secLabel})`,
+        message: `The ${datesheet.exam_name} examination datesheet for ${datesheet.class} - ${secLabel}${rangeText ? ` (${rangeText})` : ''} has been officially declared. Check the Upcoming Exams section for your full schedule.`,
         type: 'exam_datesheet',
         recipient_type: 'all',
         recipient_role: 'all',
@@ -588,8 +621,11 @@ router.put('/:id/declare', protect, authorize('admin', 'admin2'), async (req, re
     }
 
     const updated = await ExamDatesheet.findByPk(datesheet.id, { include: DATESHEET_INCLUDES });
+    const secLabelResult = ['all', 'ALL', 'All', 'All Sections'].includes(datesheet.section)
+      ? 'All Sections'
+      : `Section ${datesheet.section}`;
     res.json({
-      message: `Datesheet declared for ${datesheet.class} - Section ${datesheet.section} and notifications sent to everyone.`,
+      message: `Datesheet declared for ${datesheet.class} - ${secLabelResult} and notifications sent to everyone.`,
       datesheet: sortDatesheetEntries(updated.toJSON()),
     });
   } catch (err) {
@@ -674,7 +710,12 @@ router.get('/student', protect, async (req, res) => {
 
     const where = { status: 'declared' };
     if (cls) where.class = cls;
-    if (section) where.section = section;
+    if (section && !['all', 'ALL', 'All', 'All Sections'].includes(String(section).trim())) {
+      where[Op.or] = [
+        { section: section },
+        { section: { [Op.in]: ['All', 'ALL', 'all', 'All Sections'] } },
+      ];
+    }
 
     const datesheets = await ExamDatesheet.findAll({
       where,

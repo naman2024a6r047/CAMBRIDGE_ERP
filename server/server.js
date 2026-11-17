@@ -489,6 +489,9 @@ const onListening = () => {
           `ALTER TABLE \`notifications\` ADD COLUMN \`target_subject\` VARCHAR(80) NULL;`,
           `ALTER TABLE \`notifications\` ADD COLUMN \`sub_category\` VARCHAR(100) NULL;`,
           `ALTER TABLE \`notifications\` ADD COLUMN \`priority\` VARCHAR(20) NULL;`,
+
+          // Exam datesheets columns
+          `ALTER TABLE \`exam_datesheets\` MODIFY COLUMN \`section\` VARCHAR(20) NOT NULL;`,
         ];
         for (const sql of alterQueries) {
           try { await sequelize.query(sql); } catch (e) {

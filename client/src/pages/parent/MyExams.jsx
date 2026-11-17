@@ -137,7 +137,7 @@ export default function MyExams() {
                       Declared
                     </span>
                     <span className="text-xs font-semibold text-slate-500">
-                      {ds.class} — Section {ds.section}
+                      {ds.class} — {['all', 'ALL', 'All'].includes(ds.section) ? 'All Sections' : `Section ${ds.section}`}
                     </span>
                   </div>
                   <h2 className="text-xl font-extrabold text-slate-800 mt-2">{ds.exam_name}</h2>

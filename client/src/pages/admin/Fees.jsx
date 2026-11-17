@@ -205,8 +205,8 @@ export default function Fees() {
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1">Section</label>
             <select value={sectionFilter} onChange={e => setSection(e.target.value)} className={f}>
-              <option value="">All</option>
-              {SECTIONS.map(s => <option key={s}>{s}</option>)}
+              <option value="">All Sections</option>
+              {SECTIONS.map(s => <option key={s} value={s}>Section {s}</option>)}
             </select>
           </div>
           {/* Status */}

@@ -16,7 +16,8 @@ export default function Attendance() {
 
   useEffect(() => {
     setLoading(true);
-    API.get(`/students?class=${cls}&section=${section}`)
+    const secParam = section ? `&section=${encodeURIComponent(section)}` : '';
+    API.get(`/students?class=${encodeURIComponent(cls)}${secParam}`)
       .then(r => {
         const list = r.data.students || [];
         setStudents(list);
@@ -34,7 +35,7 @@ export default function Attendance() {
       const records = Object.entries(attendance).map(([student_id, status]) => ({
         student_id: parseInt(student_id), status
       }));
-      await API.post('/attendance/bulk', { class: cls, section, date, records });
+      await API.post('/attendance/bulk', { class: cls, section: section || 'All', date, records });
       toast.success('Attendance saved!');
     } catch {
       toast.error('Failed to save.');
@@ -201,7 +202,8 @@ export default function Attendance() {
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1">Section</label>
             <select value={section} onChange={e => setSection(e.target.value)} className={f}>
-              {SECTIONS.map(s => <option key={s}>{s}</option>)}
+              <option value="">All Sections</option>
+              {SECTIONS.map(s => <option key={s} value={s}>Section {s}</option>)}
             </select>
           </div>
           <div>
@@ -236,7 +238,7 @@ export default function Attendance() {
       {/* Attendance form */}
       <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-5 shadow-sm">
         <h3 className="text-sm font-semibold text-gray-700 mb-4">
-          {cls} — Section {section} &nbsp;·&nbsp;
+          {cls} — {section ? `Section ${section}` : 'All Sections'} &nbsp;·&nbsp;
           <span className="text-gray-400 font-normal text-xs">
             {new Date(date).toLocaleDateString('en-IN', { weekday: 'long', day: '2-digit', month: 'long' })}
           </span>

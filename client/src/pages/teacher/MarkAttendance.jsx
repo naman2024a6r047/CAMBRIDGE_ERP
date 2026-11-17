@@ -40,14 +40,15 @@ export default function MarkAttendance() {
   useEffect(() => {
     setLoading(true);
     setSaved(false);
-    API.get(`/students?class=${cls}&section=${section}`)
+    const secParam = section ? `&section=${encodeURIComponent(section)}` : '';
+    API.get(`/students?class=${encodeURIComponent(cls)}${secParam}`)
       .then(async r => {
         const list = r.data.students || [];
         setStudents(list);
 
         // Pre-fill existing attendance for selected date
         try {
-          const existing = await API.get(`/attendance/class?class=${cls}&section=${section}&date=${date}`);
+          const existing = await API.get(`/attendance/class?class=${encodeURIComponent(cls)}${secParam}&date=${date}`);
           const records = existing.data.records || [];
           setIsFinalized(existing.data.is_finalized || false);
           setCanMark(existing.data.can_mark ?? false);
@@ -106,7 +107,8 @@ export default function MarkAttendance() {
             {(allowedClasses.length > 0 ? allowedClasses : CLASSES).map(c => <option key={c}>{c}</option>)}
           </select>
           <select value={section} onChange={e => setSection(e.target.value)} className={f}>
-            {SECTIONS.map(s => <option key={s}>{s}</option>)}
+            <option value="">All Sections</option>
+            {SECTIONS.map(s => <option key={s} value={s}>Section {s}</option>)}
           </select>
           <input type="date" value={date} onChange={e => setDate(e.target.value)} className={f} max={todayInput()} />
         </div>
