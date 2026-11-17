@@ -2,11 +2,14 @@ const { Teacher, ClassIncharge, ClassSubject, Student } = require('../models');
 
 const normalizeClass = (name) => {
   if (!name) return '';
-  return String(name).trim().toLowerCase()
+  const str = String(name).trim().toLowerCase()
     .replace(/^class\s+/i, '')
     .replace(/^grade\s+/i, '')
     .replace(/(st|nd|rd|th)$/i, '')
     .trim();
+  if (str === 'lower kg' || str === 'lowerkg') return 'lkg';
+  if (str === 'upper kg' || str === 'upperkg') return 'ukg';
+  return str;
 };
 
 const isClassMatch = (a, b) => {

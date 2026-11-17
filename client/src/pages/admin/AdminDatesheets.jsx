@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import API from '../../utils/api';
+import { CLASSES } from '../../constants/roles';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import toast from 'react-hot-toast';
 
@@ -54,9 +55,8 @@ export default function AdminDatesheets() {
   }, []);
 
   const distinctClasses = useMemo(() => {
-    const set = new Set([...classMatrix.map((c) => c.class), ...datesheets.map((d) => d.class)].filter(Boolean));
-    return ['all', ...Array.from(set).sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true }))];
-  }, [classMatrix, datesheets]);
+    return ['all', ...CLASSES];
+  }, []);
 
   const filteredDatesheets = useMemo(() => {
     return datesheets.filter((ds) => {
@@ -71,7 +71,7 @@ export default function AdminDatesheets() {
 
   // Compute class readiness overview for all school classes before declaration
   const classCoverageRows = useMemo(() => {
-    return classMatrix.map((cm) => {
+    return classMatrix.filter(cm => CLASSES.includes(cm.class)).map((cm) => {
       const classSheets = datesheets.filter(
         (d) =>
           d.class === cm.class &&

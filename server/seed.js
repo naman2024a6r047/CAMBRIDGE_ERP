@@ -30,21 +30,17 @@ async function seed() {
 
   // ── Class Fee Structures ──────────────────────────────────────────────────
   await ClassFeeStructure.bulkCreate([
-    { class: 'Playgroup', monthly_fee: 1200, admission_fee: 2500, annual_fee: 600,  promotion_fee: 0,   exam_fee: 100 },
     { class: 'Nursery',   monthly_fee: 1200, admission_fee: 2500, annual_fee: 600,  promotion_fee: 200, exam_fee: 100 },
-    { class: 'LKG',       monthly_fee: 1400, admission_fee: 3000, annual_fee: 700,  promotion_fee: 250, exam_fee: 150 },
-    { class: 'UKG',       monthly_fee: 1400, admission_fee: 3000, annual_fee: 700,  promotion_fee: 250, exam_fee: 150 },
-    { class: 'day care',  monthly_fee: 1500, admission_fee: 3000, annual_fee: 800,  promotion_fee: 300, exam_fee: 200 },
-    { class: '1st',       monthly_fee: 1500, admission_fee: 3000, annual_fee: 800,  promotion_fee: 300, exam_fee: 200 },
-    { class: '2nd',       monthly_fee: 1500, admission_fee: 3000, annual_fee: 800,  promotion_fee: 300, exam_fee: 200 },
-    { class: '3rd',       monthly_fee: 1800, admission_fee: 3500, annual_fee: 900,  promotion_fee: 350, exam_fee: 250 },
-    { class: '4th',       monthly_fee: 1800, admission_fee: 3500, annual_fee: 900,  promotion_fee: 350, exam_fee: 250 },
-    { class: '5th',       monthly_fee: 1800, admission_fee: 3500, annual_fee: 900,  promotion_fee: 350, exam_fee: 250 },
-    { class: '6th',       monthly_fee: 2000, admission_fee: 4000, annual_fee: 1000, promotion_fee: 400, exam_fee: 300 },
-    { class: '7th',       monthly_fee: 2200, admission_fee: 4000, annual_fee: 1000, promotion_fee: 400, exam_fee: 300 },
-    { class: '8th',       monthly_fee: 2500, admission_fee: 4500, annual_fee: 1200, promotion_fee: 500, exam_fee: 350 },
-    { class: '9th',       monthly_fee: 2800, admission_fee: 5000, annual_fee: 1200, promotion_fee: 500, exam_fee: 400 },
-    { class: '10th',      monthly_fee: 3000, admission_fee: 5000, annual_fee: 1500, promotion_fee: 600, exam_fee: 500 },
+    { class: 'Lower KG',  monthly_fee: 1400, admission_fee: 3000, annual_fee: 700,  promotion_fee: 250, exam_fee: 150 },
+    { class: 'Upper KG',  monthly_fee: 1400, admission_fee: 3000, annual_fee: 700,  promotion_fee: 250, exam_fee: 150 },
+    { class: 'Class 1',   monthly_fee: 1500, admission_fee: 3000, annual_fee: 800,  promotion_fee: 300, exam_fee: 200 },
+    { class: 'Class 2',   monthly_fee: 1500, admission_fee: 3000, annual_fee: 800,  promotion_fee: 300, exam_fee: 200 },
+    { class: 'Class 3',   monthly_fee: 1800, admission_fee: 3500, annual_fee: 900,  promotion_fee: 350, exam_fee: 250 },
+    { class: 'Class 4',   monthly_fee: 1800, admission_fee: 3500, annual_fee: 900,  promotion_fee: 350, exam_fee: 250 },
+    { class: 'Class 5',   monthly_fee: 1800, admission_fee: 3500, annual_fee: 900,  promotion_fee: 350, exam_fee: 250 },
+    { class: 'Class 6',   monthly_fee: 2000, admission_fee: 4000, annual_fee: 1000, promotion_fee: 400, exam_fee: 300 },
+    { class: 'Class 7',   monthly_fee: 2200, admission_fee: 4000, annual_fee: 1000, promotion_fee: 400, exam_fee: 300 },
+    { class: 'Class 8',   monthly_fee: 2500, admission_fee: 4500, annual_fee: 1200, promotion_fee: 500, exam_fee: 350 },
   ], { ignoreDuplicates: true });
 
   console.log('✅ Fee structures seeded');

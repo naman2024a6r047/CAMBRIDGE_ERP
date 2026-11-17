@@ -13,9 +13,17 @@ export const ROLE_LABELS = {
 };
 
 export const CLASSES = [
-  'Playgroup', 'Nursery', 'LKG', 'UKG', 'day care',
-  '1st', '2nd', '3rd', '4th', '5th',
-  '6th', '7th', '8th', '9th', '10th',
+  'Nursery',
+  'Lower KG',
+  'Upper KG',
+  'Class 1',
+  'Class 2',
+  'Class 3',
+  'Class 4',
+  'Class 5',
+  'Class 6',
+  'Class 7',
+  'Class 8',
 ];
 
 export const SECTIONS = ['A', 'B', 'C', 'D'];
@@ -26,9 +34,17 @@ export const SUBJECTS = [
 ];
 
 export const FEE_STRUCTURE = {
-  'Playgroup': 1200, 'Nursery': 1200, 'LKG': 1400, 'UKG': 1400, 'day care': 1500,
-  '1st':  1500, '2nd':  1500, '3rd':  1800, '4th':  1800, '5th':  1800,
-  '6th':  2000, '7th':  2200, '8th':  2500, '9th':  2800, '10th': 3000,
+  'Nursery':  1200,
+  'Lower KG': 1400,
+  'Upper KG': 1400,
+  'Class 1':  1500,
+  'Class 2':  1500,
+  'Class 3':  1800,
+  'Class 4':  1800,
+  'Class 5':  1800,
+  'Class 6':  2000,
+  'Class 7':  2200,
+  'Class 8':  2500,
 };
 
 export const EXAM_TYPES = [

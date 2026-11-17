@@ -17,8 +17,8 @@ export default function BulkUploadStudents() {
   const downloadTemplate = () => {
     const csvContent = 
       "First Name,Last Name,Class,Section,Roll Number,Gender,Date of Birth,Parent Name,Parent Phone,Parent Email,Parent Address,Email,Password\n" +
-      "Aarav,Sharma,5th,A,12,Male,2015-05-15,Rakesh Sharma,9876543210,rakesh@example.com,Kishtwar Jammu,aarav5a@school.com,studentA\n" +
-      "Diya,Patel,6th,B,5,Female,2014-08-20,Suresh Patel,9123456789,suresh@example.com,Kishtwar Jammu,,";
+      "Aarav,Sharma,Class 5,A,12,Male,2015-05-15,Rakesh Sharma,9876543210,rakesh@example.com,Kishtwar Jammu,aarav5a@school.com,studentA\n" +
+      "Diya,Patel,Class 6,B,5,Female,2014-08-20,Suresh Patel,9123456789,suresh@example.com,Kishtwar Jammu,,";
     
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);

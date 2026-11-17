@@ -19,6 +19,16 @@ export default function FeeStructure() {
   const canEdit   = isSuperAdmin(user);
 
   const [structures, setStructures] = useState([]);
+  const visibleStructures = useMemo(() => {
+    return structures
+      .filter((s) => CLASSES.includes(s.class))
+      .sort((a, b) => {
+        const idxA = CLASSES.indexOf(a.class);
+        const idxB = CLASSES.indexOf(b.class);
+        if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+        return (a.class || '').localeCompare(b.class || '');
+      });
+  }, [structures]);
   const [sessions, setSessions]     = useState([]);
   const [loading, setLoading]       = useState(true);
   const [editing, setEditing]       = useState(null);
@@ -156,7 +166,7 @@ export default function FeeStructure() {
 
       {loading ? (
         <p className="text-center py-10 text-gray-400">Loading...</p>
-      ) : structures.length === 0 ? (
+      ) : visibleStructures.length === 0 ? (
         <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
           <p className="text-gray-400 text-sm">No fee structures configured yet.</p>
           {canEdit && (
@@ -167,7 +177,7 @@ export default function FeeStructure() {
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {structures.map(s => (
+          {visibleStructures.map(s => (
             <div key={s.id} className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm hover:shadow-md transition-shadow">
               <div className="flex justify-between items-start mb-3">
                 <div>

@@ -18,6 +18,17 @@ export default function ClassFees() {
 
   const configuredClasses = useMemo(() => new Set(rows.map((row) => row.class)), [rows]);
 
+  const visibleRows = useMemo(() => {
+    return rows
+      .filter((row) => CLASSES.includes(row.class))
+      .sort((a, b) => {
+        const idxA = CLASSES.indexOf(a.class);
+        const idxB = CLASSES.indexOf(b.class);
+        if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+        return (a.class || '').localeCompare(b.class || '');
+      });
+  }, [rows]);
+
   const load = async () => {
     setLoading(true);
     try {
@@ -110,14 +121,14 @@ export default function ClassFees() {
                 </tr>
               </thead>
               <tbody>
-                {rows.length === 0 ? (
+                {visibleRows.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="text-center py-10 text-gray-400 text-sm">
                       No class fees configured yet.
                     </td>
                   </tr>
                 ) : (
-                  rows.map((row) => (
+                  visibleRows.map((row) => (
                     <tr key={row.class} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
                       <td className="py-3 px-4 font-medium text-gray-800 whitespace-nowrap">{row.class}</td>
                       <td className="py-3 px-4">

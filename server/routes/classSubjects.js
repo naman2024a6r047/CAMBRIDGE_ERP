@@ -1,4 +1,5 @@
 const express = require('express');
+const { CLASSES } = require('../config/roles');
 const router = express.Router();
 const { ClassSubject, Teacher, ClassIncharge, Student, User } = require('../models');
 const { protect, authorize, hasPermission } = require('../middleware/auth');
@@ -145,7 +146,7 @@ router.get('/my-assignments', protect, async (req, res) => {
       const distinctClasses = Object.keys(sectionMap);
       const fallbackClasses = distinctClasses.length > 0
         ? distinctClasses
-        : ['Nursery', '1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th', '9th', '10th'];
+        : (CLASSES || ['Nursery', 'Lower KG', 'Upper KG', 'Class 1', 'Class 2', 'Class 3', 'Class 4', 'Class 5', 'Class 6', 'Class 7', 'Class 8']);
 
       fallbackClasses.forEach(cls => {
         const sections = sectionMap[cls] && sectionMap[cls].size > 0

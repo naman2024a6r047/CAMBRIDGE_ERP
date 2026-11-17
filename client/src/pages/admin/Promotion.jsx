@@ -3,21 +3,32 @@ import API from '../../utils/api';
 import toast from 'react-hot-toast';
 
 const PROMOTION_MAP = {
-  'day care':  'Playgroup',
-  'Playgroup': 'Nursery',
-  'Nursery':   'LKG',
-  'LKG':       'UKG',
-  'UKG':       '1st',
-  '1st':       '2nd',
-  '2nd':       '3rd',
-  '3rd':       '4th',
-  '4th':       '5th',
-  '5th':       '6th',
-  '6th':       '7th',
-  '7th':       '8th',
-  '8th':       '9th',
-  '9th':       '10th',
+  'Nursery':   'Lower KG',
+  'Lower KG':  'Upper KG',
+  'Upper KG':  'Class 1',
+  'Class 1':   'Class 2',
+  'Class 2':   'Class 3',
+  'Class 3':   'Class 4',
+  'Class 4':   'Class 5',
+  'Class 5':   'Class 6',
+  'Class 6':   'Class 7',
+  'Class 7':   'Class 8',
+  'Class 8':   'Graduated (Alumni)',
+  // Backwards compatibility mappings for older records:
+  'LKG':       'Upper KG',
+  'UKG':       'Class 1',
+  '1st':       'Class 2',
+  '2nd':       'Class 3',
+  '3rd':       'Class 4',
+  '4th':       'Class 5',
+  '5th':       'Class 6',
+  '6th':       'Class 7',
+  '7th':       'Class 8',
+  '8th':       'Graduated (Alumni)',
+  '9th':       'Graduated (Alumni)',
   '10th':      'Graduated (Alumni)',
+  'day care':  'Nursery',
+  'Playgroup': 'Nursery',
 };
 
 const formatDateShort = (val) => {
@@ -516,13 +527,13 @@ export default function Promotion() {
                       <td className="py-2.5 px-3.5">
                         <p className="font-medium text-slate-700">{row.from_session_name || row.from_session}</p>
                         <p className="text-[11px] text-slate-500">
-                          Class {row.from_class}{row.from_section ? `-${row.from_section}` : ''}
+                          {String(row.from_class || '').startsWith('Class ') || ['Nursery', 'Lower KG', 'Upper KG'].includes(row.from_class) ? row.from_class : `Class ${row.from_class}`}{row.from_section ? `-${row.from_section}` : ''}
                         </p>
                       </td>
                       <td className="py-2.5 px-3.5">
                         <p className="font-medium text-blue-700">{row.to_session_name || row.to_session}</p>
                         <p className="text-[11px] text-slate-500">
-                          {row.to_class === 'alumni' ? 'Graduated (Alumni)' : `Class ${row.to_class}`}
+                          {row.to_class === 'alumni' || row.to_class === 'Graduated (Alumni)' ? 'Graduated (Alumni)' : (String(row.to_class || '').startsWith('Class ') || ['Nursery', 'Lower KG', 'Upper KG'].includes(row.to_class) ? row.to_class : `Class ${row.to_class}`)}
                         </p>
                       </td>
                       <td className="py-2.5 px-3.5 text-slate-600">

@@ -53,7 +53,7 @@ export default function Timetable() {
   const isAdmin = user?.role === 'admin' || user?.role === 'admin2';
   const [inchargeList, setInchargeList] = useState([]);
 
-  const [cls, setCls] = useState(CLASSES.includes('8th') ? '8th' : CLASSES[0]);
+  const [cls, setCls] = useState(CLASSES.includes('Class 8') ? 'Class 8' : CLASSES[0]);
   const [section, setSection] = useState('A');
   const [academicTerm, setAcademicTerm] = useState('2024 - 2025 (Term 1)');
   const [effectiveDate, setEffectiveDate] = useState('2024-05-27');
@@ -116,7 +116,7 @@ export default function Timetable() {
   const [showCopyModal, setShowCopyModal] = useState(false);
   const [copying, setCopying] = useState(false);
   const [copySource, setCopySource] = useState({
-    class: CLASSES.find(c => c !== '8th') || CLASSES[0],
+    class: CLASSES.find(c => c !== 'Class 8') || CLASSES[0],
     section: 'B'
   });
   const [copyOptions, setCopyOptions] = useState({

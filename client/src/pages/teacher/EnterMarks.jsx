@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import API from '../../utils/api';
+import { CLASSES } from '../../constants/roles';
 import Modal from '../../components/common/Modal';
 import { getGradeBg, formatDate } from '../../utils/helpers';
 import { EXAM_TYPES } from '../../constants/roles';
@@ -51,7 +52,7 @@ export default function EnterMarks() {
   const [actionNote, setActionNote] = useState('');
 
   const SECTIONS = ['A', 'B', 'C', 'D'];
-  const COMMON_CLASSES = ['Nursery', 'LKG', 'UKG', '1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th', '9th', '10th'];
+  const COMMON_CLASSES = CLASSES;
   const COMMON_SUBJECTS = ['English', 'Hindi', 'Mathematics', 'Science', 'Social Studies', 'Urdu', 'Kashmiri', 'Computer Science', 'General'];
 
   useEffect(() => {
@@ -65,14 +66,14 @@ export default function EnterMarks() {
           setSection(list[0].section || 'A');
           setSubject(list[0].subject || 'General');
         } else {
-          setCls('8th');
+          setCls(CLASSES[0]);
           setSection('A');
           setSubject(teacher?.subject ? teacher.subject.split(',')[0].trim() : 'General');
         }
       })
       .catch(() => {
         toast.error('Failed to load assignments');
-        setCls('8th');
+        setCls(CLASSES[0]);
         setSection('A');
         setSubject('General');
       });

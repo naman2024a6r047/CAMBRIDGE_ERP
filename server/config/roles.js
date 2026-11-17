@@ -98,8 +98,17 @@ const PERMISSIONS = {
 };
 
 const CLASSES = [
-  'Playgroup', 'Nursery', 'LKG', 'UKG', 'day care',
-  '1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th', '9th', '10th'
+  'Nursery',
+  'Lower KG',
+  'Upper KG',
+  'Class 1',
+  'Class 2',
+  'Class 3',
+  'Class 4',
+  'Class 5',
+  'Class 6',
+  'Class 7',
+  'Class 8',
 ];
 
 module.exports = { ROLES, ROLE_LEVELS, PERMISSIONS, CLASSES };
