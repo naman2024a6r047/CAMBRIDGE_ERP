@@ -10,7 +10,7 @@ const {
   Fee,
   ClassFeeStructure
 } = require('../models');
-const { migrateAdmissionRequestColumns, migrateFeeColumns } = require('../utils/dbMigrator');
+const { migrateAdmissionRequestColumns, migrateFeeColumns, migrateNotificationColumns } = require('../utils/dbMigrator');
 
 async function runAdmissionWorkflowTests() {
   console.log('\n================================================================');
@@ -20,6 +20,7 @@ async function runAdmissionWorkflowTests() {
   await sequelize.sync();
   await migrateAdmissionRequestColumns();
   await migrateFeeColumns();
+  await migrateNotificationColumns();
 
   // 1. Prepare Active Academic Session
   const [session] = await Session.findOrCreate({
