@@ -6,12 +6,12 @@
 [![Database](https://img.shields.io/badge/Database-MySQL%20%7C%20SQLite3-orange.svg)](https://sequelize.org/)
 [![Color Theme](https://img.shields.io/badge/Theme-Royal%20Blue%20%26%20Golden%20Yellow-1E3A8A.svg)](#-institution-branding--color-theme)
 [![Security Status](https://img.shields.io/badge/Security-Enterprise%20WAF%20Hardened-success.svg)](#-cybersecurity-hardening--active-waf)
-[![Test Suite](https://img.shields.io/badge/Automated%20Tests-32%2F32%20Passing-brightgreen.svg)](#-automated-testing-suites)
+[![Automated Tests](https://img.shields.io/badge/Automated%20Tests-92%2F92%20Passing-brightgreen.svg)](#-automated-testing-suites)
 [![License](https://img.shields.io/badge/License-ISC-purple.svg)](LICENSE)
 
-A modern, production-ready, full-stack **Enterprise Resource Planning (ERP)** platform tailored for **International Cambridge School Kishtwar**, academies, and multi-branch educational networks.
+A modern, production-grade, full-stack **Enterprise Resource Planning (ERP)** platform tailored specifically for **International Cambridge School Kishtwar**, multi-branch academies, and institutional educational networks.
 
-Features role-scoped academic portals, automated CBSE/State-style **Marksheet Cum Certificate** PDF generators, an authoritative **Central Platform Connector** with real-time operational sync via School ID, a dedicated **Business Subscription & Monthly Billing Engine**, and enterprise-grade **Cybersecurity & Web Application Firewall (WAF)** defenses.
+Features role-scoped academic portals, automated CBSE/State-style **Marksheet Cum Certificate** PDF generators with student photo embedding, an administrative **Exam Datesheet Creation & Direct Publishing Engine**, a public zero-auth **Online Admission Application Portal** with sequential form numbering, an intuitive **Staff Credential Manager with Instant Dispatch**, a robust **Multi-Month Fee Collection Engine**, an authoritative **Central Platform Connector** with real-time operational telemetry sync via permanent School ID, a dedicated **Commercial Subscription & Billing Engine**, and enterprise-grade **Cybersecurity & Web Application Firewall (WAF)** defenses.
 
 ---
 
@@ -20,11 +20,17 @@ Features role-scoped academic portals, automated CBSE/State-style **Marksheet Cu
 - [Institution Branding & Color Theme](#-institution-branding--color-theme)
 - [Architectural Overview](#-architectural-overview)
 - [Core Functional Modules](#-core-functional-modules)
-  - [1. Multi-Role Educational Portals](#1-multi-role-educational-portals)
-  - [2. Student Performance & Marksheet Cum Certificate Generation](#2-student-performance--marksheet-cum-certificate-generation)
-  - [3. Central Management Platform Integration & School ID](#3-central-management-platform-integration--school-id)
-  - [4. Business Subscription & Billing Module](#4-business-subscription--billing-module)
-  - [5. Strict Non-Financial Data Isolation](#5-strict-non-financial-data-isolation)
+  - [1. Multi-Role Educational Portals & RBAC](#1-multi-role-educational-portals--rbac)
+  - [2. Student Performance, Photographs & Marksheet Cum Certificate Generation](#2-student-performance-photographs--marksheet-cum-certificate-generation)
+  - [3. Admin Exam Datesheet Creation & Direct School-Wide Publishing](#3-admin-exam-datesheet-creation--direct-school-wide-publishing)
+  - [4. Public Online Admission Application Portal & Form Tracking](#4-public-online-admission-application-portal--form-tracking)
+  - [5. Staff Credential Management & Instant Fast Dispatch](#5-staff-credential-management--instant-fast-dispatch)
+  - [6. Multi-Month Fee Collection & Dynamic Class Structures](#6-multi-month-fee-collection--dynamic-class-structures)
+  - [7. Canonical Academic Classes (Nursery through Class 8)](#7-canonical-academic-classes-nursery-through-class-8)
+  - [8. Targeted Notifications & School Announcements](#8-targeted-notifications--school-announcements)
+  - [9. Central Management Platform Integration & School ID](#9-central-management-platform-integration--school-id)
+  - [10. Business Subscription & Billing Module](#10-business-subscription--billing-module)
+  - [11. Strict Non-Financial Data Isolation](#11-strict-non-financial-data-isolation)
 - [Cybersecurity Hardening & Active WAF](#-cybersecurity-hardening--active-waf)
 - [Project Directory Structure](#-project-directory-structure)
 - [Installation & Quick Start](#-installation--quick-start)
@@ -39,7 +45,7 @@ Features role-scoped academic portals, automated CBSE/State-style **Marksheet Cu
 
 - **Official Name**: `International Cambridge School Kishtwar`
 - **Color Identity**: **Royal Blue** (`#1E3A8A`, `#2563EB`) paired with **Golden Yellow** (`#FACC15`, `#EAB308`).
-- **Applied Everywhere**: Top navigation bars, sidebars, active badges, status indicators, buttons, data tables, and high-resolution PDF certificate outputs adhere strictly to this high-contrast educational color scheme.
+- **Applied Everywhere**: Top navigation bars, sidebars, active badges, status indicators, buttons, data tables, public admission forms, and high-resolution PDF certificate outputs adhere strictly to this high-contrast educational color scheme.
 
 ---
 
@@ -48,13 +54,15 @@ Features role-scoped academic portals, automated CBSE/State-style **Marksheet Cu
 ```mermaid
 flowchart TD
     subgraph ClientLayer["Frontend Application (React 18 + Tailwind CSS)"]
-        UI_ADMIN["Admin & Admin2 Portals"]
+        UI_PUBLIC["Public Admission Portal (/admission)"]
+        UI_ADMIN["Admin & Admin2 Portals (/admin)"]
+        UI_DATESHEET["Admin Datesheet Studio (/admin/datesheets)"]
+        UI_CREDS["Staff Credential Manager (/admin/credentials)"]
         UI_TEACHER["Teacher Portal (Class-Scoped)"]
-        UI_STUDENT["Student & Parent Portals"]
-        UI_FC["Fee Collector Portal"]
-        UI_SETTINGS["School Settings & Central School ID (Send Real Data)"]
-        UI_CENTRAL["Central School ID Page (Clean ID Display Only)"]
-        UI_SUSPEND["Red-Themed Service Suspension Screen"]
+        UI_STUDENT["Student & Parent Portals (/student, /parent)"]
+        UI_FC["Fee Collector Portal (/fc)"]
+        UI_CENTRAL["Central School ID & Settings (/admin/settings)"]
+        UI_SUSPEND["Red-Themed Service Suspension Screen (/suspended)"]
     end
 
     subgraph SecurityLayer["Security & Gateway Perimeter"]
@@ -67,19 +75,23 @@ flowchart TD
 
     subgraph ServiceLayer["Backend Engine (Node.js + Express + Sequelize)"]
         AUTH_SVC["Auth Service (Timing-Safe Login, Bcrypt Cost 12)"]
+        ADMISSION_SVC["Public Admission Engine (Auto Form No: ICS-YYYY-XXXX)"]
+        DATESHEET_SVC["Datesheet Engine (Draft, Approve, Direct Declare & Broadcast)"]
+        CRED_SVC["Credential Manager (Fast Dispatch, 2.5s Race Timeout)"]
         ACADEMIC_SVC["Academic Engine (Marks, Attendance, Timetable, PDF Reports)"]
-        FEE_SVC["School Fee Ledger (Strictly Air-Gapped)"]
+        FEE_SVC["School Fee Ledger (Multi-Month Collection, Strictly Air-Gapped)"]
         CENTRAL_SVC["Central Integration Connector (HMAC-SHA256, Replay Defense)"]
         BILLING_SVC["Business Subscription & Monthly Payment Register"]
-        SETTINGS_SVC["Settings & School ID Dual-Persistence Engine"]
+        NOTIFICATION_SVC["Targeted Notifications & Push Broadcast"]
     end
 
     subgraph DatabaseLayer["Persistence Layer (Sequelize ORM - MySQL / SQLite)"]
-        DB_ACADEMICS[("Academic, Student & Teacher Tables")]
-        DB_FEES[("Internal School Fee & Structure Tables")]
+        DB_ADMISSION[("Admission Requests & Public Registrations")]
+        DB_ACADEMICS[("Academic, Student, Teacher, Datesheets & Exam Tables")]
+        DB_FEES[("Internal School Fee & Class Fee Structure Tables")]
         DB_CENTRAL[("CentralConfig, SyncLogs, CommandLogs")]
         DB_BILLING[("CentralSubscriptions, BillingInvoices, PaymentRegister")]
-        DB_SETTINGS[("Setting (Key-Value Store, Logo Base64, School ID)")]
+        DB_SETTINGS[("Setting (Key-Value Store, Base64 Logo, School ID)")]
     end
 
     ClientLayer --> SecurityLayer
@@ -91,22 +103,23 @@ flowchart TD
 
 ## 🚀 Core Functional Modules
 
-### 1. Multi-Role Educational Portals
+### 1. Multi-Role Educational Portals & RBAC
+
+The platform provides role-based access control (RBAC) with granular data isolation:
 
 | Role | Access Level & Key Capabilities |
 | :--- | :--- |
-| **Super Admin (`admin`)** | Full system control: academic sessions, timetable generator, staff credentials, fees, logs, school settings, and centralized School ID management. |
-| **Admin 2 (`admin2`)** | Secondary administration: result approvals, student admissions, class incharge assignments, datesheets, and staff attendance. |
+| **Super Admin (`admin` / `superadmin`)** | Full system control: academic sessions, timetable generator, staff credentials, fees, logs, school settings, direct datesheet creation/publishing, and centralized School ID management. |
+| **Admin 2 (`admin2`)** | Secondary administration: marksheet approvals, student admissions review, class incharge assignments, datesheet drafts, and staff attendance. |
 | **Teacher (`teacher`)** | **Strictly scoped to assigned classes**: attendance marking, marks entry, subject analytics, leave applications, and student performance tracking. Teachers can only see students under their care. |
-| **Student / Parent (`student`, `parent`)** | View personal academic marks, attendance %, exam timetables, download marksheet cum certificates, and check fee status (protected against IDOR). |
-| **Fee Collector (`fee_collector`)** | Student fee collection, receipt generation, category management, admissions, and fee structure queries. |
+| **Student / Parent (`student`, `parent`)** | View personal academic marks, attendance %, exam timetables, declared datesheets, download marksheet cum certificates, and check fee status (protected against IDOR). |
+| **Fee Collector (`fee_collector`)** | Multi-month student fee collection, receipt generation, category management, student enrollment records, and class fee structure queries. |
 
 ---
 
-### 2. Student Performance & Marksheet Cum Certificate Generation
+### 2. Student Performance, Photographs & Marksheet Cum Certificate Generation
 
-- **Role-Scoped Performance Analytics**: Administrators and Teachers can view detailed academic performance. Teachers are cryptographically and query-scoped to see **only students belonging to classes assigned to them**.
-- **CBSE/State-Style "Marksheet Cum Certificate" Layout**:
+- **Single-Page Consolidated Marksheet Cum Certificate**:
   - **Decorative Outer Borders**: Rich Royal Blue with Golden Yellow internal borders and a top 16-color pencil header.
   - **School Header & Dynamic Logo**: Automatically embeds the administrator-uploaded school logo from settings, school title, subtitle, DICE number, and session.
   - **Student Bio Details**: Class, Roll No, Admission/Scholar No, Caste, Aadhar No, Family ID, and SSSMID.
@@ -115,10 +128,102 @@ flowchart TD
     - **Main Academic Subjects**: Detail subjects, maximum marks (theory + internal), minimum passing marks, marks obtained, and grade.
     - **Personal & Social Qualities (Co-Scholastic)**: Computer & G.K., Regularity, Yoga Activities, Behaviour & Compassion, Respectful & Courteous, Discipline, and Arts & Craft with grades ($A, B, C$).
   - **Summary & Signatures**: Result status (Passed/Promoted), Percentage, Division, Class Rank, Promoted Class, School Reopen date, Class Teacher signature space, and Principal signature space.
+- **Photograph Persistence & Dynamic Image Embedding**:
+  - Student profile and passport photographs uploaded during admission or profile management are stored as high-capacity `LONGTEXT` base64 strings in the database.
+  - Automatically synchronizes photos between `students`, `admission_requests`, and `users` tables.
+  - Employs dynamic format sniffing (`PNG`, `JPEG`, `WEBP`) in jsPDF to ensure clean rendering on generated marksheets, single-page dossiers, and student cards across all browsers without image corruption.
 
 ---
 
-### 3. Central Management Platform Integration & School ID
+### 3. Admin Exam Datesheet Creation & Direct School-Wide Publishing
+
+- **Universal Datesheet Management (`/admin/datesheets`)**:
+  - School Administrators and Super Admins have full authority to create, edit, approve, and declare exam datesheets for **any canonical class** (Nursery through Class 8).
+  - Dynamic timetable builder: add, edit, or delete exam slots (exam date, start time, end time, subject, room number, max marks).
+- **Three-Tier Lifecycle**:
+  - `draft`: Work-in-progress schedule saved by admin or teacher.
+  - `approved`: Schedule reviewed and verified.
+  - `declared`: Published to the entire school.
+- **Direct Declaration & Instant School-Wide Broadcast**:
+  - Admins can bypass intermediate drafts by choosing **"Declare & Publish Immediately"**.
+  - Upon declaration, the ERP automatically broadcasts an official school-wide notification to all students and parents of the relevant class.
+  - Immediately visible on Student and Parent portal dashboards (`/student/datesheets`, `/parent/datesheets`).
+
+---
+
+### 4. Public Online Admission Application Portal & Form Tracking
+
+- **Zero-Authentication Public Access (`/admission`)**:
+  - Accessible to prospective parents and guardians without requiring login or prior account registration.
+  - Displays dynamic school branding, institutional header, and active academic session.
+- **Sequential Form Number Auto-Generation**:
+  - Automatically generates an institutional form tracking identifier in the format `ICS-YYYY-XXXX` (e.g., `ICS-2026-0001`), ensuring unique, sequential application numbering.
+- **Comprehensive Applicant Profile**:
+  - Collects student personal details, DOB, gender, blood group, category/caste, Aadhar, SSSMID, previous school info, father and mother names, occupations, phone numbers, email, full residential address, and passport photo upload.
+- **Real-Time Application Status Tracker**:
+  - Parents can look up application progress anytime via `/admission` using their unique Form Number (e.g., `ICS-2026-0001`).
+  - Clear visual tracking badges: `Pending Review`, `Under Review`, `Approved`, or `Rejected`.
+- **Administrative Alerts & Resilient Database Sync**:
+  - Automatically triggers an in-app administrative notification alert whenever a new application is submitted.
+  - Employs defensive raw SQL migrations on boot to ensure zero schema friction across MySQL, MariaDB, and SQLite environments.
+
+---
+
+### 5. Staff Credential Management & Instant Fast Dispatch
+
+- **Dedicated Admin Credential Dashboard (`/admin/credentials`)**:
+  - Complete visibility over all staff accounts (Teachers, Fee Collectors, Staff, Admins).
+  - Search by name, email, or role with live filtering.
+- **Inline Credential Editing & Password Reset**:
+  - Admins can instantly update usernames or set new passwords directly from the UI.
+  - All passwords are encrypted immediately using bcrypt (salt cost 12).
+- **One-Click Temporary Password Generator**:
+  - Modal with built-in cryptographically strong random password generator (alphanumeric with symbols) for rapid onboarding.
+- **Instant "Send Credentials" Button with 2.5s Race Timeout**:
+  - Admins can click "Send Credentials" to dispatch login details directly to the staff member's email address.
+  - **Non-Blocking Background Dispatch**: Implements an asynchronous 2.5-second race timeout. If SMTP delivery experiences network latency, the UI immediately returns success to the administrator while the mailer safely completes in the background.
+
+---
+
+### 6. Multi-Month Fee Collection & Dynamic Class Structures
+
+- **Multi-Month Fee Collection (`/fc/collect`)**:
+  - Fee collectors can select single or multiple months across the academic calendar (including cross-year periods, e.g., November 2026 to April 2027).
+  - Automatically calculates total dues, applies concessions, and logs breakdown per month.
+- **Zero-Balance Auto-Reconciliation**:
+  - Intelligent engine scans and auto-reconciles stale zero-amount records during new collections.
+- **Dynamic Fee Structure Synchronization**:
+  - Fees are strictly calculated using administrator-configured `class_fee_structures` rather than hardcoded fallbacks.
+  - Supports Monthly Tuition Fee, Admission Fee, Annual Charges, Exam Fee, Transport Fee, and Library Charges.
+- **Financial Air-Gap & IDOR Guard**:
+  - Teachers are cryptographically blocked from student fee balances and collection registers. Only `admin`, `admin2`, and `fee_collector` can interact with financial ledgers.
+
+---
+
+### 7. Canonical Academic Classes (Nursery through Class 8)
+
+The ERP strictly enforces the institution's official 11-class academic structure:
+```text
+Nursery ➔ LKG ➔ UKG ➔ Class 1 ➔ Class 2 ➔ Class 3 ➔ Class 4 ➔ Class 5 ➔ Class 6 ➔ Class 7 ➔ Class 8
+```
+- Non-standard class names are normalized automatically.
+- Ensures consistency across fee structures, timetables, datesheets, marks entry, and public admissions.
+
+---
+
+### 8. Targeted Notifications & School Announcements
+
+- **Audience-Targeted Messaging**:
+  - Announcements can be sent to **Entire School (Broadcast)**, **Teachers Only**, or **Students & Parents Only**.
+- **Class & Section Granularity**:
+  - Student notifications can be targeted specifically to a designated class (e.g., `Class 8 - Section A`).
+- **Structured Categories & Priorities**:
+  - Subcategories: `Academics`, `Examinations`, `Fees & Accounts`, `Holidays`, `Sports & Events`, `Administrative`, and `Urgent Alerts`.
+  - Priority levels: `Low`, `Normal`, `High`, `Urgent` (with visual badge styling).
+
+---
+
+### 9. Central Management Platform Integration & School ID
 
 Connects this ERP installation to our centralized multi-school management platform:
 
@@ -128,21 +233,19 @@ Connects this ERP installation to our centralized multi-school management platfo
   - Provides a **Copy School ID** button and a **Sync Real Data Now** button.
   - When saving settings, the School ID is dual-persisted to both `Setting` and `CentralConfig`, immediately triggering background telemetry synchronization.
 - **Clean School Identifier Page (`/admin/central-integration`)**:
-  - As requested, all clutter (manual pairing tokens, verification forms, approval request popups, audit tables) has been removed from the School ERP view.
-  - **Shows School ID Only**: Displays the permanent School ID (e.g. `SCH-2026-01001`), connection status badge, inline edit/update tool, live sync button, and basic school info.
+  - Clutter-free interface displaying permanent School ID (e.g. `SCH-2026-01001`), connection status badge, inline edit/update tool, and live sync trigger.
 - **Permanent School ID Preservation on Approval**:
-  - When an administrator inputs the School ID into the Central Management Web Platform and approves the connection, the ERP automatically processes the approval challenge in the background.
+  - When approved on the Central Platform, the ERP processes the challenge automatically.
   - **The School ID is NEVER removed, reset, or deleted from the ERP**.
-  - No approval request popups or challenge tokens interrupt the school staff in the ERP.
 - **Live Operational Data Synchronization**:
-  - Transmits real operational statistics (active students, teacher headcount, attendance rates, academic classes, class distributions) securely to the central platform.
+  - Transmits real operational statistics (active students, teacher headcount, attendance rates, academic classes, class distributions) securely.
   - Background synchronization via cron (`node server/scripts/cronSync.js`) with built-in concurrency lock-file protection.
 
 ---
 
-### 4. Business Subscription & Billing Module
+### 10. Business Subscription & Billing Module
 
-Manages **our commercial ERP service revenue** (software subscriptions schools pay to us for using the ERP platform):
+Manages **commercial ERP software subscriptions** paid by schools for using the ERP platform:
 
 - **School Subscription Profiles**: Configures plans (`Standard`, `Professional`, `Enterprise`, `Custom`), standard monthly charges, custom rates, validity dates, and grace periods.
 - **Monthly Billing Register**: Generates monthly invoices for each school. Supports **full payments**, **partial payments**, **unpaid accounts**, and **overpayments** (advance credit).
@@ -150,11 +253,10 @@ Manages **our commercial ERP service revenue** (software subscriptions schools p
 - **Audited Payment Corrections**: Correcting payment records requires a mandatory reason and logs before/after values to `CentralBillingAuditLog`.
 - **Centralized Suspension / Reactivation Workflow**: Central administrators can remotely pause or restore school access with confirmation dialogs, outstanding balance displays, and command acknowledgements.
 - **Red-Themed Suspension Page (`/suspended`)**: Displays a mobile-responsive screen informing users of the temporary pause, providing billing support contacts, and guaranteeing that all school records are safe.
-- **Separation of Concerns**: Central billing controls are reserved for the central management platform operators; the school ERP admin navigation remains clean and focused solely on school academic tasks.
 
 ---
 
-### 5. Strict Non-Financial Data Isolation
+### 11. Strict Non-Financial Data Isolation
 
 > [!IMPORTANT]
 > **STRICT ARCHITECTURAL AIR-GAP**:
@@ -162,7 +264,7 @@ Manages **our commercial ERP service revenue** (software subscriptions schools p
 > - Multi-layer enforcement:
 >   1. **Model Layer**: `Fee` and `ClassFeeStructure` models are never imported into central sync routines.
 >   2. **Runtime Scanner**: `securityService.assertNoFinancialData()` deeply inspects payloads prior to transmission and throws fatal exceptions if any financial keyword is detected.
->   3. **Automated Verification**: Negative automated tests verify that injecting fee data triggers instant security rejections.
+>   3. **Automated Verification**: Automated tests verify that injecting fee data triggers instant security rejections.
 
 ---
 
@@ -203,16 +305,25 @@ Cambridge-ERP/
 │   │   ├── components/            # Reusable UI (Sidebar, Navbar, Modals)
 │   │   ├── context/               # AuthContext & SettingsContext
 │   │   ├── pages/
-│   │   │   ├── admin/             # Admin dashboard, settings, logs
+│   │   │   ├── public/            # Public admission portal (/admission)
+│   │   │   │   └── AdmissionForm.jsx
+│   │   │   ├── admin/             # Admin dashboards & management modules
+│   │   │   │   ├── Datesheets.jsx               # Datesheet builder, editor & direct publish
+│   │   │   │   ├── CredentialManager.jsx        # Staff credential dashboard & fast dispatch
+│   │   │   │   ├── FeeStructure.jsx             # Class fee schedules & dynamic configuration
 │   │   │   │   ├── Settings.jsx                 # School profile & Central School ID config
 │   │   │   │   ├── CentralIntegration.jsx       # Simplified Central School ID display UI
 │   │   │   │   └── CentralBillingDashboard.jsx  # Central platform revenue & billing UI
-│   │   │   ├── common/
+│   │   │   ├── common/            # Shared academic pages
 │   │   │   │   ├── StudentPerformance.jsx       # Student analytics & marksheet PDF
+│   │   │   │   ├── DatesheetView.jsx            # Dynamic datesheet viewer
 │   │   │   │   └── SuspensionPage.jsx           # Red-themed service suspension page
 │   │   │   ├── teacher/           # Teacher attendance & grading (class-scoped)
-│   │   │   └── parent/            # Student & parent portal screens
-│   │   └── utils/api.js           # Axios interceptors (CSRF, 401, 423 redirect)
+│   │   │   ├── parent/            # Student & parent portal screens
+│   │   │   └── fee_collector/     # Multi-month fee collection & receipts
+│   │   └── utils/
+│   │       ├── api.js             # Axios interceptors (CSRF, 401, 423 redirect)
+│   │       └── roleUtils.js       # Dynamic role and alias evaluation helpers
 │   └── package.json
 └── server/                        # Node.js Express backend API
     ├── server.js                  # App bootstrap, security headers, route mounting
@@ -226,6 +337,10 @@ Cambridge-ERP/
     │   ├── securityLogger.js      # Enterprise inline WAF threat scanner
     │   └── upload.js              # Multer + binary magic-byte validator
     ├── models/                    # Sequelize database models
+    │   ├── AdmissionRequest.js    # Public admission applications & form numbers
+    │   ├── Datesheet.js           # Exam timetables & declaration state
+    │   ├── User.js                # System users, roles & bcrypt passwords
+    │   ├── Student.js             # Student demographic & academic records
     │   ├── Setting.js             # School name, address, logo, and School ID
     │   ├── CentralConfig.js       # School ID, connector secrets & status
     │   ├── CentralSyncLog.js      # Audit log for non-financial telemetry sync
@@ -235,11 +350,15 @@ Cambridge-ERP/
     │   ├── CentralBillingPayment.js # Payment register with correction tracking
     │   └── CentralBillingAuditLog.js # Forensic audit trail for revenue changes
     ├── routes/                    # API endpoints
+    │   ├── publicAdmission.js     # Public zero-auth admission submission & tracking
+    │   ├── datesheets.js          # Datesheet CRUD, approvals & direct declaration
+    │   ├── credentials.js         # Staff credential updates & instant dispatch
+    │   ├── notifications.js       # Targeted notices & broadcast messaging
     │   ├── settings.js            # Settings & Central School ID configuration
     │   ├── central.js             # School ID endpoints, approve, diagnostics, webhooks
     │   ├── centralBilling.js      # Revenue dashboard, subscriptions, payment register
     │   ├── students.js            # Student records & consolidated PDF generator
-    │   ├── fees.js                # School internal fee ledger (RBAC hardened)
+    │   ├── fees.js                # Multi-month fee collection & structures
     │   └── auth.js                # Authentication, lockout, and password management
     ├── scripts/
     │   └── cronSync.js            # Standalone cPanel / VPS CLI cron sync runner
@@ -254,10 +373,20 @@ Cambridge-ERP/
     │   ├── registrationService.js # Authoritative registration handler
     │   ├── securityService.js     # HMAC-SHA256, timing-safe checks, assertNoFinancialData
     │   └── syncEngine.js          # Heartbeat telemetry and operational sync
-    ├── tests/                     # Automated test suites
-    │   ├── centralIntegration.test.js # 12-point connector verification suite
-    │   ├── centralBilling.test.js     # 10-point revenue & billing verification suite
-    │   └── securityHardening.test.js  # 10-point active WAF & attack verification suite
+    ├── tests/                     # Automated test suites (92 passing tests)
+    │   ├── adminDatesheets.test.js        # Admin direct datesheet declaration
+    │   ├── adminPasswordChange.test.js    # Secure admin password reset
+    │   ├── centralBilling.test.js         # Commercial revenue & billing
+    │   ├── centralIntegration.test.js     # Central connector verification
+    │   ├── credentialManagement.test.js   # Credential updates & email dispatch
+    │   ├── customNotifications.test.js    # Targeted notice broadcasting
+    │   ├── erpClassesRestriction.test.js  # Canonical 11-class enforcement
+    │   ├── feeCollectionRobustness.test.js# Multi-month collection & reconciliation
+    │   ├── feeSyncAuthenticity.test.js    # Dynamic fee structure calculation
+    │   ├── marksheetAuthenticity.test.js  # Marksheet generation & photo embedding
+    │   ├── publicAdmissionWorkflow.test.js# Public admission form & tracking
+    │   ├── securityHardening.test.js      # Active WAF & threat defenses
+    │   └── studentsAndTeachersAccess.test.js # Role aliases & RBAC boundaries
     └── package.json
 ```
 
@@ -268,7 +397,7 @@ Cambridge-ERP/
 ### Prerequisites
 - **Node.js**: v18.0.0 or higher
 - **npm**: v9.0.0 or higher
-- **Database**: MySQL (Production) or SQLite3 (Development / Staging)
+- **Database**: MySQL / MariaDB (Production) or SQLite3 (Development / Staging)
 
 ### Step-by-Step Setup
 
@@ -319,52 +448,78 @@ For production environments on cPanel, shared Linux hosting, or VPS deployments,
 
 ## 🧪 Automated Testing Suites
 
-The platform includes **32 automated tests** across 3 test suites verifying integration, revenue management, and security defenses:
+The platform includes **92 automated tests** across **13 comprehensive test suites** verifying every tier of the application:
 
 ```bash
-# Run all 3 test suites from root
+# Run all 13 test suites from root
 npm test
 
 # Or run directly inside server directory
 npm test --prefix server
 ```
 
-### Test Suite Summary
+### Complete Test Suites Overview
 
-1. **Central Platform Integration (`centralIntegration.test.js`)**: 12 Tests
-   - Permanent School ID assignment & duplicate protection
-   - Challenge-response pairing & automatic permission provisioning
-   - Aggregated operational telemetry extraction (zero PII)
-   - Strict financial data exclusion assertion (`assertNoFinancialData`)
-   - Predefined command whitelist & rejection of arbitrary SQL/shell code
-   - HMAC-SHA256 signature verification & timestamp replay protection
-   - Application-level suspension and instant reactivation
-2. **Business Subscription & Billing (`centralBilling.test.js`)**: 10 Tests
-   - Custom pricing, plans, and historical rate preservation
-   - Full, partial, and overpayments in monthly payment register
-   - Payment corrections with mandatory audit trail
-   - Dashboard revenue metrics and balance calculations
-   - Remote suspension with mandatory reasoning & data preservation proof
-   - Remote reactivation and access restoration
-   - Total financial air-gap from school internal fee tables
-3. **Security Hardening & WAF (`securityHardening.test.js`)**: 10 Tests
-   - Emergency route `/api/fix-db` locked behind SuperAdmin
-   - Active WAF blocks SQL Injection, XSS, and Prototype Pollution
-   - Active WAF blocks Path Traversal and Remote Command Injection
-   - Automated penetration testing bot fingerprinting (`sqlmap`, `nikto`)
-   - Binary magic-byte image validation rejecting spoofed files
-   - Teacher role denied access to student fee ledgers (IDOR defense)
-   - Error handler suppresses stack traces in production
+| # | Test Suite | File | Tests | Key Capabilities Verified |
+| :-: | :--- | :--- | :-: | :--- |
+| **1** | **Central Integration** | `centralIntegration.test.js` | **12** | School ID permanence, HMAC-SHA256 signatures, pairing challenge, zero financial data assertion, command whitelist. |
+| **2** | **Central Billing** | `centralBilling.test.js` | **10** | Monthly billing register, custom rates, audit trails for corrections, remote suspension/reactivation, air-gap proof. |
+| **3** | **Security Hardening & WAF** | `securityHardening.test.js` | **10** | Inline WAF defense against SQLi, XSS, prototype pollution, path traversal, scanner bot blocking, magic-byte image validation. |
+| **4** | **Marksheet Authenticity** | `marksheetAuthenticity.test.js` | **8** | Single-page layout, DOB-to-words, scholastic/co-scholastic grades, student photo embedding, teacher-scoped visibility. |
+| **5** | **Fee Structure Calculation** | `feeSyncAuthenticity.test.js` | **9** | Normalized class matching, exact admin fee calculations, multi-month calculation, propagation to student records. |
+| **6** | **Public Admission Workflow** | `publicAdmissionWorkflow.test.js` | **8** | Zero-auth submission, sequential `ICS-YYYY-XXXX` form numbering, real-time status lookup, photo persistence. |
+| **7** | **Admin Password Security** | `adminPasswordChange.test.js` | **5** | Password verification, rejection of mismatched or short passwords, bcrypt rehashing, subsequent credential validity. |
+| **8** | **Canonical Class Restriction** | `erpClassesRestriction.test.js` | **5** | Enforces Nursery through Class 8 (11 classes), rejects out-of-charter classes (Class 9-12), ensures database uniformity. |
+| **9** | **Fee Collection Robustness** | `feeCollectionRobustness.test.js` | **4** | Auto-reconciliation of zero-amount records, cross-year multi-month collections (e.g. Nov 2026 - Apr 2027), payment mode safety. |
+| **10**| **Custom Targeted Notices** | `customNotifications.test.js` | **7** | Role-targeted broadcasts (Teachers Only vs Students Only), Class/Section specific targeting, subcategories, priority queries. |
+| **11**| **User & Teacher Access RBAC** | `studentsAndTeachersAccess.test.js` | **5** | Admin alias support (`superadmin`, `super_admin`), RBAC boundary enforcement, model schema validation. |
+| **12**| **Credential Dispatch** | `credentialManagement.test.js` | **5** | Admin credential updates, bcrypt hashing, temporary password generator, non-blocking background email dispatch. |
+| **13**| **Admin Datesheet Declaration**| `adminDatesheets.test.js` | **4** | Direct datesheet creation by Admin, multi-subject timetable editing, instant declaration & official broadcast alerts. |
+
+**Total**: **92 / 92 Passed (100% Success Rate)**
 
 ---
 
 ## 📡 API Reference Summary
 
-### Authentication & Core Endpoints
+### Authentication & User Management
 - `POST /api/auth/login` — Timing-attack protected login (sets `httpOnly` JWT cookie).
 - `POST /api/auth/logout` — Secure cookie invalidation.
 - `GET /api/auth/me` — Fetches authenticated user profile and permissions.
 - `PUT /api/auth/change-password` — Rate-limited password updates.
+
+### Public Online Admission Portal (`server/routes/publicAdmission.js`)
+- `POST /api/public/admission` — Zero-auth online admission application submission (returns sequential Form Number).
+- `GET /api/public/admission/config` — Fetches public school branding, session info, and logo.
+- `GET /api/public/admission/status/:form_no` — Real-time application tracking by Form Number.
+
+### Admin Datesheet Management (`server/routes/datesheets.js`)
+- `GET /api/datesheets` — Fetch datesheets filtered by class, status, or session.
+- `GET /api/datesheets/:id` — Detailed exam schedule by ID.
+- `POST /api/datesheets` — Create new datesheet (`action: 'draft' | 'approve' | 'declare'`).
+- `PUT /api/datesheets/:id` — Update schedule slots or declare/publish datesheet.
+- `DELETE /api/datesheets/:id` — Delete draft or obsolete datesheet.
+
+### Staff Credential Management (`server/routes/credentials.js`)
+- `GET /api/credentials` — List all staff accounts with login usernames and email delivery status (Admin only).
+- `PUT /api/credentials/:id` — Update login username or reset password with instant bcrypt hashing.
+- `POST /api/credentials/:id/send` — Generate temporary password and dispatch credentials to staff email with non-blocking race timeout.
+
+### Targeted School Notifications (`server/routes/notifications.js`)
+- `GET /api/notifications` — Fetch announcements filtered by role, class, or subcategory.
+- `POST /api/notifications` — Create and broadcast announcement to target audience (All, Teachers, Students, Specific Class).
+- `PATCH /api/notifications/:id/read` — Mark notification as read.
+
+### Student Records & Academic Documents (`server/routes/students.js`)
+- `GET /api/students` — Filtered student records (role-scoped for teachers).
+- `GET /api/students/:id/consolidated-marksheet` — Generates CBSE-style Marksheet Cum Certificate PDF.
+- `GET /api/students/:id/performance-report` — Generates comprehensive performance dossier PDF with photo.
+
+### School Fee Ledger (`server/routes/fees.js`)
+- `GET /api/fees/student/:studentId` — Student fee ledger (restricted to admin, fee collector, and student).
+- `POST /api/fees/collect` — Multi-month fee collection with auto-reconcile and dynamic rate calculation.
+- `GET /api/fees/structures` — Retrieve class fee structures (Nursery to Class 8).
+- `PUT /api/fees/structures/:id` — Configure class fee rates and component breakdown.
 
 ### Settings & School ID Endpoints (`server/routes/settings.js`)
 - `GET /api/settings` — Returns school details, address, logo, and active School ID.
@@ -381,7 +536,7 @@ npm test --prefix server
 - `GET /api/central/suspension-info` — Public status check for the suspension screen.
 - `POST /api/central/webhook` — HMAC-SHA256 authenticated inbound management webhook.
 
-### Business Billing & Subscription Endpoints (`server/routes/centralBilling.js`)
+### Commercial Subscription & Billing Endpoints (`server/routes/centralBilling.js`)
 - `GET /api/central-billing/dashboard` — Revenue analytics, charges, and 6-month trends.
 - `GET /api/central-billing/subscriptions` — List school subscriptions and balances.
 - `PUT /api/central-billing/subscriptions/:school_id/charges` — Update subscription pricing.
@@ -392,17 +547,12 @@ npm test --prefix server
 - `POST /api/central-billing/subscriptions/:school_id/reactivate` — Issue remote reactivation command.
 - `GET /api/central-billing/audit-logs` — Complete billing and command audit history.
 
-### Academic & Student Records Endpoints
-- `GET /api/students` — Filtered student records (role-scoped for teachers).
-- `GET /api/students/:id/consolidated-marksheet` — Generates CBSE-style Marksheet Cum Certificate PDF.
-- `GET /api/students/:id/performance-report` — Generates comprehensive performance report PDF.
-- `GET /api/fees/student/:studentId` — Student fee ledger (restricted to admin, fee collector, and student).
-
 ---
 
 ## 👤 Git Repository & Author
 
-- **GitHub Repository**: [`https://github.com/httpsghsthakur/Cambridge-ERP.git`](https://github.com/httpsghsthakur/Cambridge-ERP.git)
+- **Primary GitHub Repository**: [`https://github.com/httpsghsthakur/Cambridge-ERP.git`](https://github.com/httpsghsthakur/Cambridge-ERP.git)
+- **Secondary GitHub Remote**: [`https://github.com/naman2024a6r047/CAMBRIDGE_ERP.git`](https://github.com/naman2024a6r047/CAMBRIDGE_ERP.git)
 - **Author Identity**: `httpsghsthakur <gt64384@gmail.com>`
 - **Active Branch**: `main`
 - **License**: ISC
