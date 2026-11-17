@@ -155,12 +155,27 @@ export default function Students() {
                   <tr key={s.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-2.5">
-                        <Avatar name={`${s.first_name} ${s.last_name}`} size="sm" />
+                        {s.profile_photo ? (
+                          <img
+                            src={s.profile_photo}
+                            alt={`${s.first_name} ${s.last_name}`}
+                            className="w-8 h-8 rounded-full object-cover border border-slate-200 shadow-2xs shrink-0"
+                          />
+                        ) : (
+                          <Avatar name={`${s.first_name} ${s.last_name}`} size="sm" />
+                        )}
                         <div className="min-w-0">
                           <p className="font-medium text-gray-800 text-sm truncate max-w-[120px] sm:max-w-none">
                             {s.first_name} {s.last_name}
                           </p>
-                          <p className="text-xs text-gray-400 font-mono">{s.student_id}</p>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs text-gray-400 font-mono">{s.student_id}</span>
+                            {s.form_no && (
+                              <span className="text-[10px] font-mono text-blue-600 bg-blue-50 px-1 rounded font-semibold">
+                                {s.form_no}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </td>
@@ -235,53 +250,93 @@ export default function Students() {
         {viewing && (
           <div className="space-y-4 text-sm text-gray-700">
             <div className="flex items-center gap-4 border-b border-gray-100 pb-4">
-              <Avatar name={`${viewing.first_name} ${viewing.last_name}`} size="lg" />
+              {viewing.profile_photo ? (
+                <img
+                  src={viewing.profile_photo}
+                  alt={`${viewing.first_name} ${viewing.last_name}`}
+                  className="w-16 h-20 rounded-xl object-cover border-2 border-blue-600 shadow-xs shrink-0"
+                />
+              ) : (
+                <Avatar name={`${viewing.first_name} ${viewing.last_name}`} size="lg" />
+              )}
               <div>
                 <h3 className="text-lg font-bold text-gray-900">{viewing.first_name} {viewing.last_name}</h3>
-                <p className="text-gray-500 font-mono text-xs">{viewing.student_id}</p>
+                <p className="text-gray-500 font-mono text-xs">Student ID: <strong>{viewing.student_id}</strong></p>
+                {viewing.form_no && (
+                  <p className="text-blue-700 font-mono text-xs font-semibold">Admission Form No: {viewing.form_no}</p>
+                )}
                 <span className={`mt-1 inline-block text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${viewing.is_active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                   {viewing.is_active ? 'Active' : 'Inactive'}
                 </span>
               </div>
             </div>
             
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               <div>
-                <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Class</p>
-                <p className="font-semibold">{viewing.class} - {viewing.section}</p>
+                <p className="text-xs text-gray-400 uppercase tracking-wider mb-0.5">Class & Section</p>
+                <p className="font-semibold text-blue-900">{viewing.class} - {viewing.section}</p>
               </div>
               <div>
-                <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Roll No.</p>
+                <p className="text-xs text-gray-400 uppercase tracking-wider mb-0.5">Roll No.</p>
                 <p className="font-semibold">{viewing.roll_number || 'N/A'}</p>
               </div>
               <div>
-                <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Gender</p>
+                <p className="text-xs text-gray-400 uppercase tracking-wider mb-0.5">Gender</p>
                 <p className="font-semibold">{viewing.gender || 'N/A'}</p>
               </div>
               <div>
-                <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Date of Birth</p>
+                <p className="text-xs text-gray-400 uppercase tracking-wider mb-0.5">Date of Birth</p>
                 <p className="font-semibold">{viewing.date_of_birth ? new Date(viewing.date_of_birth).toLocaleDateString() : 'N/A'}</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-400 uppercase tracking-wider mb-0.5">Aadhaar Number</p>
+                <p className="font-semibold font-mono">{viewing.aadhar_number || 'N/A'}</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-400 uppercase tracking-wider mb-0.5">Previous School</p>
+                <p className="font-semibold">{viewing.previous_school || 'None'}</p>
               </div>
             </div>
 
             <div className="border-t border-gray-100 pt-4 mt-2">
-              <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Parent Information</h4>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Parent & Contact Information</h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 <div>
-                  <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Name</p>
-                  <p className="font-semibold">{viewing.parent_name || 'N/A'}</p>
+                  <p className="text-xs text-gray-400 uppercase tracking-wider mb-0.5">Father's Name</p>
+                  <p className="font-semibold">{viewing.father_name || viewing.parent_name || 'N/A'}</p>
+                  {viewing.father_occupation && <p className="text-xs text-gray-500">{viewing.father_occupation}</p>}
                 </div>
                 <div>
-                  <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Phone</p>
-                  <p className="font-semibold">{viewing.parent_phone || 'N/A'}</p>
+                  <p className="text-xs text-gray-400 uppercase tracking-wider mb-0.5">Father's Phone / WhatsApp</p>
+                  <p className="font-semibold">{viewing.father_phone || viewing.parent_phone || 'N/A'}</p>
+                  {viewing.father_whatsapp && viewing.father_whatsapp !== viewing.father_phone && (
+                    <p className="text-xs text-emerald-600 font-mono">WA: {viewing.father_whatsapp}</p>
+                  )}
+                </div>
+                <div>
+                  <p className="text-xs text-gray-400 uppercase tracking-wider mb-0.5">Mother's Name</p>
+                  <p className="font-semibold">{viewing.mother_name || 'N/A'}</p>
+                  {viewing.mother_occupation && <p className="text-xs text-gray-500">{viewing.mother_occupation}</p>}
+                </div>
+                <div>
+                  <p className="text-xs text-gray-400 uppercase tracking-wider mb-0.5">Mother's Phone / WhatsApp</p>
+                  <p className="font-semibold">{viewing.mother_phone || 'N/A'}</p>
+                  {viewing.mother_whatsapp && viewing.mother_whatsapp !== viewing.mother_phone && (
+                    <p className="text-xs text-emerald-600 font-mono">WA: {viewing.mother_whatsapp}</p>
+                  )}
                 </div>
                 <div className="sm:col-span-2">
-                  <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Email</p>
+                  <p className="text-xs text-gray-400 uppercase tracking-wider mb-0.5">Email</p>
                   <p className="font-semibold">{viewing.parent_email || 'N/A'}</p>
                 </div>
                 <div className="sm:col-span-2">
-                  <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Address</p>
-                  <p className="font-semibold">{viewing.parent_address || 'N/A'}</p>
+                  <p className="text-xs text-gray-400 uppercase tracking-wider mb-0.5">Residential Address</p>
+                  <p className="font-semibold">{viewing.residential_address || viewing.parent_address || 'N/A'}</p>
+                  {(viewing.post_office_tehsil || viewing.district || viewing.pin_code) && (
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      {[viewing.post_office_tehsil, viewing.district, viewing.pin_code].filter(Boolean).join(', ')}
+                    </p>
+                  )}
                 </div>
               </div>
             </div>

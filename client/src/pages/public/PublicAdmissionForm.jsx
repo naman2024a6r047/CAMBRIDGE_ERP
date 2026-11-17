@@ -75,8 +75,10 @@ export default function PublicAdmissionForm() {
     school_logo_url: '',
   });
 
+  const [photoError, setPhotoError] = useState(false);
+
   useEffect(() => {
-    // Fetch school branding settings
+    // 1. Fetch public admission configuration (school name, logo, contacts)
     axios.get(`${API_BASE}/public/admission/config`)
       .then(r => {
         if (r.data) {
@@ -86,6 +88,22 @@ export default function PublicAdmissionForm() {
             school_subtitle: r.data.school_subtitle || prev.school_subtitle,
             school_address: r.data.school_address || prev.school_address,
             school_logo_url: r.data.school_logo_url || prev.school_logo_url,
+          }));
+        }
+      })
+      .catch(() => {});
+
+    // 2. Also fetch directly from settings to ensure admin-set logo is applied
+    axios.get(`${API_BASE}/settings`)
+      .then(r => {
+        if (r.data) {
+          const logo = r.data.school_logo_url || r.data.logo_url || r.data.admin_profile_photo;
+          setSettings(prev => ({
+            ...prev,
+            school_name: r.data.school_name || prev.school_name,
+            school_subtitle: r.data.school_subtitle || prev.school_subtitle,
+            school_address: r.data.school_address || prev.school_address,
+            school_logo_url: logo || prev.school_logo_url,
           }));
         }
       })
@@ -112,6 +130,7 @@ export default function PublicAdmissionForm() {
     const reader = new FileReader();
     reader.onload = () => {
       setFormData(prev => ({ ...prev, passport_photo: reader.result }));
+      setPhotoError(false);
       toast.success('Passport photo attached!');
     };
     reader.readAsDataURL(file);
@@ -142,14 +161,42 @@ export default function PublicAdmissionForm() {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    // Mandatory Field Validations
     if (!formData.student_name.trim()) {
       return toast.error('Student Name is required.');
     }
-    if (!formData.father_name.trim() && !formData.mother_name.trim()) {
-      return toast.error("Father's Name or Mother's Name is required.");
+    if (!formData.date_of_birth) {
+      return toast.error('Date of Birth is required.');
     }
-    if (!formData.father_phone.trim() && !formData.mother_phone.trim()) {
-      return toast.error('At least one phone number is required.');
+    if (!formData.gender) {
+      return toast.error('Please select Gender (Male, Female, or Other).');
+    }
+    if (!formData.applying_class) {
+      return toast.error('Please select Class applying for.');
+    }
+    if (!formData.passport_photo) {
+      setPhotoError(true);
+      return toast.error("Student's passport-size photograph is mandatory. Please upload a photo.");
+    }
+    setPhotoError(false);
+
+    if (!formData.father_name.trim()) {
+      return toast.error("Father's Name is required.");
+    }
+    if (!formData.father_phone.trim()) {
+      return toast.error("Father's Contact Phone Number is required.");
+    }
+    if (!formData.mother_name.trim()) {
+      return toast.error("Mother's Name is required.");
+    }
+    if (!formData.residential_address.trim()) {
+      return toast.error('Residential Address is required.');
+    }
+    if (!formData.district.trim()) {
+      return toast.error('District is required.');
+    }
+    if (!formData.pin_code.trim()) {
+      return toast.error('Pin Code is required.');
     }
     if (!formData.declaration_agreed) {
       return toast.error('Please confirm the authenticity declaration.');
@@ -161,6 +208,7 @@ export default function PublicAdmissionForm() {
       setSubmittedData({
         ...res.data.data,
         form_no: res.data.form_no,
+        passport_photo: formData.passport_photo,
       });
       toast.success('Admission application submitted successfully!');
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -206,8 +254,8 @@ export default function PublicAdmissionForm() {
               </div>
             )}
             <div>
-              <p className="text-xs font-bold text-slate-900 uppercase tracking-tight">International Cambridge School</p>
-              <p className="text-[10px] text-slate-400">Shaheedi Mohallah, Kishtwar</p>
+              <p className="text-xs font-bold text-slate-900 uppercase tracking-tight">{settings.school_name || 'International Cambridge School'}</p>
+              <p className="text-[10px] text-slate-400">{settings.school_address || 'Shaheedi Mohallah, Kishtwar'}</p>
             </div>
           </div>
 
@@ -320,28 +368,37 @@ export default function PublicAdmissionForm() {
               </p>
             </div>
 
-            {/* Reference Badge */}
+            {/* Reference Badge with Student Photo */}
             <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 text-left space-y-3">
               <div className="flex justify-between items-center border-b border-slate-200 pb-3">
                 <span className="text-xs text-slate-500 uppercase font-semibold">Form Reference No.</span>
                 <span className="text-lg font-black text-blue-700 tracking-wider font-mono">{submittedData.form_no}</span>
               </div>
-              <div className="grid grid-cols-2 gap-3 text-xs">
-                <div>
-                  <span className="text-slate-400 block">Student Name</span>
-                  <strong className="text-slate-800 text-sm">{submittedData.first_name} {submittedData.last_name === '.' ? '' : submittedData.last_name}</strong>
-                </div>
-                <div>
-                  <span className="text-slate-400 block">Class Applying For</span>
-                  <strong className="text-slate-800 text-sm">{submittedData.applying_class}</strong>
-                </div>
-                <div>
-                  <span className="text-slate-400 block">Father / Guardian</span>
-                  <strong className="text-slate-800">{submittedData.parent_name || submittedData.father_name}</strong>
-                </div>
-                <div>
-                  <span className="text-slate-400 block">Contact Phone</span>
-                  <strong className="text-slate-800">{submittedData.parent_phone}</strong>
+              <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+                {submittedData.passport_photo && (
+                  <img
+                    src={submittedData.passport_photo}
+                    alt="Student Photograph"
+                    className="w-16 h-20 rounded-xl object-cover border-2 border-blue-600 shadow-xs shrink-0 mx-auto sm:mx-0"
+                  />
+                )}
+                <div className="grid grid-cols-2 gap-3 text-xs flex-1 w-full">
+                  <div>
+                    <span className="text-slate-400 block">Student Name</span>
+                    <strong className="text-slate-800 text-sm">{submittedData.first_name} {submittedData.last_name === '.' ? '' : submittedData.last_name}</strong>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block">Class Applying For</span>
+                    <strong className="text-slate-800 text-sm">{submittedData.applying_class}</strong>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block">Father / Guardian</span>
+                    <strong className="text-slate-800">{submittedData.parent_name || submittedData.father_name}</strong>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block">Contact Phone</span>
+                    <strong className="text-slate-800">{submittedData.parent_phone || submittedData.father_phone}</strong>
+                  </div>
                 </div>
               </div>
             </div>
@@ -418,9 +475,9 @@ export default function PublicAdmissionForm() {
                   )}
                   <div>
                     <h1 className="text-xl sm:text-2xl font-black text-slate-900 uppercase tracking-tight">
-                      International Cambridge School Kishtwar
+                      {settings.school_name || 'International Cambridge School Kishtwar'}
                     </h1>
-                    <p className="text-sm font-semibold text-blue-800 italic mt-0.5">Building Bright Futures</p>
+                    <p className="text-sm font-semibold text-blue-800 italic mt-0.5">{settings.school_subtitle || 'Building Bright Futures'}</p>
                   </div>
                 </div>
 
@@ -557,7 +614,9 @@ export default function PublicAdmissionForm() {
                   </div>
 
                   {/* Passport Photo Box (Top Right) */}
-                  <div className="flex flex-col items-center justify-center p-4 bg-slate-50 border-2 border-dashed border-slate-300 rounded-2xl text-center">
+                  <div className={`flex flex-col items-center justify-center p-4 rounded-2xl text-center border-2 border-dashed transition-all ${
+                    photoError ? 'border-rose-500 bg-rose-50/50 ring-2 ring-rose-200' : 'border-slate-300 bg-slate-50'
+                  }`}>
                     {formData.passport_photo ? (
                       <div className="space-y-2">
                         <img
@@ -567,22 +626,26 @@ export default function PublicAdmissionForm() {
                         />
                         <button
                           type="button"
-                          onClick={() => setFormData(prev => ({ ...prev, passport_photo: '' }))}
-                          className="text-xs text-red-600 font-medium hover:underline block mx-auto"
+                          onClick={() => { setFormData(prev => ({ ...prev, passport_photo: '' })); setPhotoError(true); }}
+                          className="text-xs text-red-600 font-medium hover:underline block mx-auto cursor-pointer"
                         >
                           Remove Photo
                         </button>
                       </div>
                     ) : (
                       <div className="space-y-2 py-4">
-                        <div className="w-24 h-32 bg-slate-200 text-slate-400 rounded-xl flex flex-col items-center justify-center mx-auto border border-slate-300">
+                        <div className={`w-24 h-32 rounded-xl flex flex-col items-center justify-center mx-auto border ${photoError ? 'bg-rose-100 text-rose-400 border-rose-300' : 'bg-slate-200 text-slate-400 border-slate-300'}`}>
                           <span className="text-3xl">📷</span>
                           <span className="text-[10px] font-bold mt-1 text-slate-500">3.5 × 4.5 cm</span>
                         </div>
-                        <p className="text-xs font-semibold text-slate-700">Paste / Upload Photo</p>
-                        <p className="text-[10px] text-slate-400">Recent Passport Size Photograph</p>
-                        <label className="inline-block mt-1 px-3 py-1.5 bg-blue-50 text-blue-700 text-xs font-bold rounded-lg border border-blue-200 cursor-pointer hover:bg-blue-100 transition-colors">
-                          Browse Image
+                        <p className="text-xs font-bold text-slate-800">
+                          Passport Photo <span className="text-rose-500">*</span>
+                        </p>
+                        <p className={`text-[10px] ${photoError ? 'text-rose-600 font-bold' : 'text-slate-400'}`}>
+                          {photoError ? '⚠️ Mandatory for Admission' : 'Recent Passport Size Photograph'}
+                        </p>
+                        <label className="inline-block mt-1 px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg shadow-2xs cursor-pointer transition-colors">
+                          Upload Photo *
                           <input type="file" accept="image/*" onChange={handlePhotoUpload} className="hidden" />
                         </label>
                       </div>
@@ -657,7 +720,7 @@ export default function PublicAdmissionForm() {
                   </div>
 
                   <div>
-                    <label className={labelStyle}>Mother's Name</label>
+                    <label className={labelStyle}>Mother's Name *</label>
                     <input
                       type="text"
                       name="mother_name"
@@ -665,6 +728,7 @@ export default function PublicAdmissionForm() {
                       onChange={handleChange}
                       placeholder="Mother's full name"
                       className={inputStyle}
+                      required
                     />
                   </div>
                   <div>
@@ -759,7 +823,7 @@ export default function PublicAdmissionForm() {
                   </div>
 
                   <div>
-                    <label className={labelStyle}>District</label>
+                    <label className={labelStyle}>District *</label>
                     <input
                       type="text"
                       name="district"
@@ -767,11 +831,12 @@ export default function PublicAdmissionForm() {
                       onChange={handleChange}
                       placeholder="Kishtwar"
                       className={inputStyle}
+                      required
                     />
                   </div>
 
                   <div>
-                    <label className={labelStyle}>Pin Code</label>
+                    <label className={labelStyle}>Pin Code *</label>
                     <input
                       type="text"
                       name="pin_code"
@@ -779,6 +844,7 @@ export default function PublicAdmissionForm() {
                       onChange={handleChange}
                       placeholder="182205"
                       className={inputStyle}
+                      required
                     />
                   </div>
                 </div>

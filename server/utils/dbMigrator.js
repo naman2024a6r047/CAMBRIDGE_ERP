@@ -590,7 +590,7 @@ async function migrateAdmissionRequestColumns() {
       { name: 'mother_phone',       type: DataTypes.STRING(20) },
       { name: 'mother_whatsapp',    type: DataTypes.STRING(20) },
       { name: 'aadhar_number',      type: DataTypes.STRING(30) },
-      { name: 'passport_photo',     type: DataTypes.TEXT },
+      { name: 'passport_photo',     type: DataTypes.TEXT('long') },
       { name: 'residential_address',type: DataTypes.TEXT },
       { name: 'post_office_tehsil', type: DataTypes.STRING(120) },
       { name: 'district',           type: DataTypes.STRING(80) },
@@ -614,6 +614,7 @@ async function migrateAdmissionRequestColumns() {
     // 2. Describe and update students table
     const stuDesc = await qi.describeTable('students');
     const stuColsToAdd = [
+      { name: 'father_name',        type: DataTypes.STRING(100) },
       { name: 'father_occupation',  type: DataTypes.STRING(100) },
       { name: 'mother_occupation',  type: DataTypes.STRING(100) },
       { name: 'father_phone',       type: DataTypes.STRING(20) },
@@ -623,9 +624,11 @@ async function migrateAdmissionRequestColumns() {
       { name: 'post_office_tehsil', type: DataTypes.STRING(120) },
       { name: 'district',           type: DataTypes.STRING(80) },
       { name: 'pin_code',           type: DataTypes.STRING(15) },
+      { name: 'residential_address',type: DataTypes.TEXT },
       { name: 'previous_school',    type: DataTypes.STRING(150) },
       { name: 'enquiry_mode',       type: DataTypes.STRING(50) },
       { name: 'form_no',            type: DataTypes.STRING(40) },
+      { name: 'passport_photo',     type: DataTypes.TEXT('long') },
     ];
 
     for (const col of stuColsToAdd) {

@@ -15,20 +15,25 @@ const { profileUpdateLimiter } = require('../middleware/rateLimiters');
 const STUDENT_CREATE_FIELDS = [
   'first_name', 'last_name', 'date_of_birth', 'gender',
   'class', 'section', 'roll_number', 'session_id',
-  'parent_name', 'mother_name', 'parent_phone', 'parent_email', 'parent_address',
-  'address', 'blood_group', 'religion', 'category', 'aadhar_number',
+  'parent_name', 'father_name', 'mother_name', 'parent_phone', 'parent_email', 'parent_address',
+  'residential_address', 'address', 'blood_group', 'religion', 'category', 'aadhar_number',
+  'father_occupation', 'mother_occupation', 'father_phone', 'father_whatsapp', 'mother_phone', 'mother_whatsapp',
+  'post_office_tehsil', 'district', 'pin_code', 'enquiry_mode', 'form_no',
   'pen_number', 'family_id',
   'previous_school', 'admission_date',
-  'email', 'password', 'profile_photo',
+  'email', 'password', 'profile_photo', 'passport_photo',
 ];
 
 const STUDENT_UPDATE_FIELDS = [
   'first_name', 'last_name', 'date_of_birth', 'gender',
   'class', 'section', 'roll_number', 'session_id',
-  'parent_name', 'mother_name', 'parent_phone', 'parent_email', 'parent_address',
-  'address', 'blood_group', 'religion', 'category', 'aadhar_number',
+  'parent_name', 'father_name', 'mother_name', 'parent_phone', 'parent_email', 'parent_address',
+  'residential_address', 'address', 'blood_group', 'religion', 'category', 'aadhar_number',
+  'father_occupation', 'mother_occupation', 'father_phone', 'father_whatsapp', 'mother_phone', 'mother_whatsapp',
+  'post_office_tehsil', 'district', 'pin_code', 'enquiry_mode', 'form_no',
   'pen_number', 'family_id',
-  'student_status', 'profile_photo',
+  'previous_school', 'admission_date',
+  'student_status', 'profile_photo', 'passport_photo',
 ];
 
 /** Pick only allowed keys from an object */

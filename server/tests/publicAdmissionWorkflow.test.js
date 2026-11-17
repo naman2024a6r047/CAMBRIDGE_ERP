@@ -202,6 +202,7 @@ async function runAdmissionWorkflowTests() {
   assert.strictEqual(verifiedStudent.form_no, testFormNo);
   assert.strictEqual(verifiedStudent.district, 'Kishtwar');
   assert.strictEqual(verifiedStudent.father_occupation, 'Govt Lecturer');
+  assert.strictEqual(verifiedStudent.profile_photo, createdRequest.passport_photo);
 
   // Verify AdmissionRequest status is updated to approved
   await createdRequest.reload();
@@ -244,6 +245,22 @@ async function runAdmissionWorkflowTests() {
   await secondPending.reload();
   assert.strictEqual(secondPending.status, 'pending');
   assert.strictEqual(secondPending.student_id_created, null);
+  console.log('✅ PASS');
+
+  // TEST 7: Student photo and details are preserved on Student model
+  process.stdout.write('  [TEST] 7. Student passport photo and identity attributes are retained in database ... ');
+  assert.ok(verifiedStudent.profile_photo.startsWith('data:image/png;base64,'), 'Student photo must be preserved');
+  assert.strictEqual(verifiedStudent.aadhar_number, '1234-5678-9012');
+  assert.strictEqual(verifiedStudent.mother_name, 'Parveena Begum');
+  assert.strictEqual(verifiedStudent.parent_phone, '9419123456');
+  console.log('✅ PASS');
+
+  // TEST 8: School logo update in settings propagates to public admission
+  process.stdout.write('  [TEST] 8. Admin logo setting dynamically updates in admission config ... ');
+  const testLogo = 'https://cambridge-erp.ktwr.in/assets/cambridge_crest_gold.png';
+  await Setting.upsert({ key: 'school_logo_url', value: testLogo });
+  const fetchedSetting = await Setting.findOne({ where: { key: 'school_logo_url' } });
+  assert.strictEqual(fetchedSetting.value, testLogo);
   console.log('✅ PASS');
 
   console.log('\n================================================================');

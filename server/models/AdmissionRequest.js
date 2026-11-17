@@ -13,7 +13,7 @@ const AdmissionRequest = sequelize.define('AdmissionRequest', {
   applying_class:     { type: DataTypes.STRING(30),  allowNull: false },
   previous_school:    { type: DataTypes.STRING(150) },
   aadhar_number:       { type: DataTypes.STRING(30) },
-  passport_photo:     { type: DataTypes.TEXT }, // Base64 data URL or file path
+  passport_photo:     { type: DataTypes.TEXT('long') }, // Base64 data URL or file path
 
   // 2. Parentage details
   parent_name:        { type: DataTypes.STRING(100), allowNull: false },

@@ -110,7 +110,9 @@ export default function MyProfilePage() {
 
   // Build avatar URL
   const avatarUrl = profile?.profile_photo
-    ? `${process.env.REACT_APP_API_URL ? process.env.REACT_APP_API_URL.replace('/api', '') : ''}${profile.profile_photo}`
+    ? (profile.profile_photo.startsWith('data:') || profile.profile_photo.startsWith('http')
+        ? profile.profile_photo
+        : `${process.env.REACT_APP_API_URL ? process.env.REACT_APP_API_URL.replace('/api', '') : ''}${profile.profile_photo}`)
     : null;
 
   // Determine role info

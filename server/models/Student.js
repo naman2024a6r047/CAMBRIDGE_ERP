@@ -19,9 +19,11 @@ const Student = sequelize.define('Student', {
 
   // Parent info
   parent_name:       DataTypes.STRING(100),
+  father_name:       DataTypes.STRING(100),
   parent_email:      DataTypes.STRING(150),
   parent_phone:      DataTypes.STRING(20),
   parent_address:    DataTypes.TEXT,
+  residential_address: DataTypes.TEXT,
   parent_occupation: DataTypes.STRING(100),
   father_occupation: DataTypes.STRING(100),
   mother_name:       DataTypes.STRING(100),
@@ -49,7 +51,11 @@ const Student = sequelize.define('Student', {
   },
 
   profile_photo: {
-    type: DataTypes.TEXT,
+    type: DataTypes.TEXT('long'),
+    allowNull: true
+  },
+  passport_photo: {
+    type: DataTypes.TEXT('long'),
     allowNull: true
   },
 
