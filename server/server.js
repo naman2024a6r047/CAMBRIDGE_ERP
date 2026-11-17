@@ -335,7 +335,21 @@ const onListening = () => {
 
       if (isProd) {
         console.log('[DB] Production mode — running sync() without alter to prevent 503 timeouts');
-        await sequelize.sync();
+        // Clean duplicate indexes in MySQL to prevent "Too many keys specified; max 64 keys allowed"
+        try {
+          const { cleanDuplicateIndexes } = require('./utils/dbCleaner');
+          await cleanDuplicateIndexes(sequelize);
+        } catch (e) {
+          console.warn('[DB] Index cleaner notice:', e.message);
+        }
+
+        try {
+          await sequelize.sync();
+          console.log('[DB] ✅ Sequelize models synchronized');
+        } catch (syncErr) {
+          console.warn('[DB] ⚠️ Note on sequelize.sync():', syncErr.message);
+          // Tables already exist in production; continue with explicit migrations below
+        }
         
         // Run hotfixes for existing tables
         await sequelize.query('ALTER TABLE `settings` MODIFY COLUMN `value` LONGTEXT;').catch(err => {
