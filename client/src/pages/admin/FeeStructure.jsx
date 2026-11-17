@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import API from '../../utils/api';
 import { formatCurrency } from '../../utils/helpers';
 import { CLASSES } from '../../constants/roles';
