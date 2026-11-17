@@ -33,7 +33,10 @@ const sendCredentialsEmail = async ({ to, name, loginId, password, role }) => {
       auth: { user, pass },
       tls: {
         rejectUnauthorized: false // Defensive setting for shared hosting/transports
-      }
+      },
+      connectionTimeout: 4000, // 4s max to establish connection
+      greetingTimeout: 4000,   // 4s max for SMTP greeting
+      socketTimeout: 6000      // 6s max socket inactivity timeout
     });
 
     const mailOptions = {
@@ -79,7 +82,12 @@ International Cambridge School ERP Administration`,
 </div>`
     };
 
-    const info = await transporter.sendMail(mailOptions);
+    // Strict 5-second timeout guard to prevent any process stalling
+    const sendPromise = transporter.sendMail(mailOptions);
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('SMTP send operation timed out after 5 seconds')), 5000)
+    );
+    const info = await Promise.race([sendPromise, timeoutPromise]);
     console.log(`[Mail Service] 📧 Email sent successfully to ${to}: ${info.messageId}`);
     return true;
   } catch (error) {

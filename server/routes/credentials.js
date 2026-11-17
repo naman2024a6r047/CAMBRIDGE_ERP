@@ -153,46 +153,164 @@ router.put('/:id', credentialUpdateLimiter, protect, authorize(...ALL_ALLOWED_RO
     // Save changes to database (automatically hashes password in hooks)
     await user.save();
 
-    // Send email notification
+    // Fast, non-blocking email notification
     let emailSent = false;
-    if (passwordUpdated) {
-      emailSent = await sendCredentialsEmail({
-        to: user.email,
-        name: user.name,
-        loginId: user.email,
-        password: password, // Plain text password entered by caller
-        role: user.role
-      });
-    } else {
-      // If only login ID was updated, we can still notify them
-      emailSent = await sendCredentialsEmail({
-        to: user.email,
-        name: user.name,
-        loginId: user.email,
-        password: '[Password Unchanged]',
-        role: user.role
-      });
-    }
-
-    if (!emailSent) {
-      return res.json({
-        success: true,
-        emailSent: false,
-        message: 'Credentials saved, but email could not be sent.',
-        user: {
-          id: user.id,
+    let emailQueued = false;
+    if (req.body.sendEmail !== false) {
+      const emailPass = passwordUpdated ? password : '[Password Unchanged]';
+      try {
+        const emailTask = sendCredentialsEmail({
+          to: user.email,
           name: user.name,
-          email: user.email,
-          role: user.role,
-          is_active: user.is_active
+          loginId: user.email,
+          password: emailPass,
+          role: user.role
+        });
+
+        // Fast race with 2.5s timeout: keeps UI snappy even on slow SMTP connections
+        const timeoutTask = new Promise((resolve) => setTimeout(() => resolve('timeout'), 2500));
+        const outcome = await Promise.race([emailTask, timeoutTask]);
+
+        if (outcome === true) {
+          emailSent = true;
+        } else if (outcome === 'timeout') {
+          emailQueued = true;
+          emailTask.then((res) => {
+            console.log(`[Credentials] Background email to ${user.email} completed with status: ${res}`);
+          }).catch(err => {
+            console.error(`[Credentials] Background email error for ${user.email}:`, err);
+          });
         }
-      });
+      } catch (mailErr) {
+        console.error('[Credentials] Non-fatal email error:', mailErr);
+      }
     }
 
     res.json({
       success: true,
-      emailSent: true,
-      message: 'Credentials updated and email sent successfully.',
+      emailSent,
+      emailQueued,
+      message: emailSent
+        ? 'Credentials updated and email sent successfully.'
+        : (emailQueued
+            ? 'Credentials saved! Email notification is dispatching in background.'
+            : 'Credentials saved successfully.'),
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        is_active: user.is_active
+      }
+    });
+
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// ── POST /api/credentials/:id/send ──────────────────────────────────────────
+// Accessible to: admin, admin2, fee_collector (with strict cross-role checks)
+// Directly sends/resends credentials email to staff, teacher, or student on demand
+router.post('/:id/send', credentialUpdateLimiter, protect, authorize(...ALL_ALLOWED_ROLES), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { password, generateNew, keepCurrent } = req.body;
+    const requesterRole = req.user.role;
+
+    const user = await User.findByPk(id);
+    if (!user) {
+      return res.status(404).json({ message: 'User credentials not found.' });
+    }
+
+    // Role-based Access Control checks:
+    if (user.role === 'teacher' || user.role === 'fee_collector') {
+      if (!ADMIN_ROLES.includes(requesterRole)) {
+        return res.status(403).json({ 
+          message: 'Access denied. Only Admins can send credentials to Teachers and Fee Collectors.' 
+        });
+      }
+    } else if (user.role === 'student') {
+      if (!ALL_ALLOWED_ROLES.includes(requesterRole)) {
+        return res.status(403).json({ 
+          message: 'Access denied. You do not have permission to send Student credentials.' 
+        });
+      }
+    } else {
+      return res.status(403).json({ 
+        message: `Access denied. Sending ${user.role} credentials is not allowed.` 
+      });
+    }
+
+    let passwordToSend = '[Password Unchanged]';
+    let tempPassword = null;
+
+    if (password && String(password).trim().length >= 6) {
+      const cleanPass = String(password).trim();
+      user.password = cleanPass;
+      user.password_changed_at = new Date();
+      await user.save();
+      passwordToSend = cleanPass;
+      tempPassword = cleanPass;
+    } else if (generateNew) {
+      const { makeTemporaryPassword } = require('../utils/credentialGenerator');
+      const cleanPass = makeTemporaryPassword();
+      user.password = cleanPass;
+      user.password_changed_at = new Date();
+      await user.save();
+      passwordToSend = cleanPass;
+      tempPassword = cleanPass;
+    } else if (keepCurrent) {
+      passwordToSend = '[Please use your existing password]';
+    } else {
+      // Default fallback if neither specified: generate clean temporary password so user can log in
+      const { makeTemporaryPassword } = require('../utils/credentialGenerator');
+      const cleanPass = makeTemporaryPassword();
+      user.password = cleanPass;
+      user.password_changed_at = new Date();
+      await user.save();
+      passwordToSend = cleanPass;
+      tempPassword = cleanPass;
+    }
+
+    // Fast send with 2.5s race timeout
+    let emailSent = false;
+    let emailQueued = false;
+    try {
+      const emailTask = sendCredentialsEmail({
+        to: user.email,
+        name: user.name,
+        loginId: user.email,
+        password: passwordToSend,
+        role: user.role
+      });
+      const timeoutTask = new Promise((resolve) => setTimeout(() => resolve('timeout'), 2500));
+      const outcome = await Promise.race([emailTask, timeoutTask]);
+
+      if (outcome === true) {
+        emailSent = true;
+      } else if (outcome === 'timeout') {
+        emailQueued = true;
+        emailTask.then((res) => {
+          console.log(`[Credentials] Background email to ${user.email} completed: ${res}`);
+        }).catch(err => {
+          console.error(`[Credentials] Background email error for ${user.email}:`, err);
+        });
+      }
+    } catch (mailErr) {
+      console.error('[Credentials] Email dispatch error:', mailErr);
+    }
+
+    res.json({
+      success: true,
+      emailSent,
+      emailQueued,
+      temporaryPassword: tempPassword,
+      message: emailSent
+        ? `Credentials sent to ${user.email} successfully!`
+        : (emailQueued
+            ? `Credentials updated! Email is dispatching in background to ${user.email}.`
+            : `Credentials updated, but email could not be delivered. Please check mail settings.`),
       user: {
         id: user.id,
         name: user.name,
