@@ -34,7 +34,7 @@ const STUDENT_UPDATE_FIELDS = [
   'post_office_tehsil', 'district', 'pin_code', 'enquiry_mode', 'form_no',
   'pen_number', 'family_id',
   'previous_school', 'admission_date',
-  'student_status', 'profile_photo', 'passport_photo',
+  'student_status', 'approval_status', 'is_active', 'profile_photo', 'passport_photo',
 ];
 
 /** Pick only allowed keys from an object */
@@ -257,7 +257,7 @@ router.get('/alumni', protect, hasPermission('VIEW_STUDENTS'), async (req, res) 
 });
 
 // GET /api/students/approvals - pending/rejected student records
-router.get('/approvals', protect, authorize('admin'), async (req, res) => {
+router.get('/approvals', protect, authorize('admin', 'admin2', 'superadmin', 'super_admin', 'fee_collector'), async (req, res) => {
   try {
     const status = req.query.status || 'pending';
     const students = await Student.findAll({
@@ -270,7 +270,7 @@ router.get('/approvals', protect, authorize('admin'), async (req, res) => {
 });
 
 // PUT /api/students/:id/approval - approve or reject pending student
-router.put('/:id/approval', protect, authorize('admin'), validateStudentApproval, async (req, res) => {
+router.put('/:id/approval', protect, authorize('admin', 'admin2', 'superadmin', 'super_admin'), validateStudentApproval, async (req, res) => {
   const txn = await require('../models').sequelize.transaction();
   try {
     const { status, rejection_reason } = req.body;
@@ -296,8 +296,17 @@ router.put('/:id/approval', protect, authorize('admin'), validateStudentApproval
 
     await User.update(
       { is_active: status === 'approved' },
-      { where: { linked_student_id: student.id, role: 'student' }, transaction: txn }
+      { where: { linked_student_id: student.id }, transaction: txn }
     );
+
+    // Also link and activate any matching User by email or parent_email
+    const userEmails = [student.parent_email, student.email].filter(Boolean);
+    if (userEmails.length > 0) {
+      await User.update(
+        { linked_student_id: student.id, is_active: status === 'approved' },
+        { where: { email: userEmails, linked_student_id: null }, transaction: txn }
+      ).catch(() => {});
+    }
 
     if (status === 'approved') {
       const { getOrCreateFeeRecord, assignPublishedFeeStructure, MONTHS } = require('../services/feeService');
@@ -1202,8 +1211,23 @@ router.put('/:id', profileUpdateLimiter, protect, hasPermission('MANAGE_STUDENTS
     const safeData = pick(req.body, STUDENT_UPDATE_FIELDS);
     if (safeData.profile_photo && !safeData.passport_photo) safeData.passport_photo = safeData.profile_photo;
     if (safeData.passport_photo && !safeData.profile_photo) safeData.profile_photo = safeData.passport_photo;
+    if (safeData.is_active === true && !safeData.approval_status) {
+      safeData.approval_status = 'approved';
+      safeData.student_status = 'active';
+    }
+    if (safeData.approval_status === 'approved') {
+      safeData.is_active = true;
+      safeData.student_status = 'active';
+    }
     const [updated] = await Student.update(safeData, { where: { id: req.params.id } });
     if (!updated) return res.status(404).json({ message: 'Student not found.' });
+
+    if (safeData.is_active !== undefined || safeData.approval_status === 'approved') {
+      await User.update(
+        { is_active: safeData.is_active ?? true },
+        { where: { linked_student_id: req.params.id } }
+      ).catch(() => {});
+    }
 
     if (safeData.profile_photo) {
       await User.update({ profile_photo: safeData.profile_photo }, { where: { linked_student_id: req.params.id } }).catch(() => {});

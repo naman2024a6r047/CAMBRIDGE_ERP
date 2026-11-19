@@ -51,8 +51,13 @@ const protect = async (req, res, next) => {
       }
     }
 
-    if (req.user.role === 'student' && req.user.linkedStudent?.approval_status !== 'approved') {
-      return res.status(401).json({ message: 'Student account is not approved.' });
+    if (req.user.role === 'student' && req.user.linkedStudent && req.user.linkedStudent.approval_status === 'pending') {
+      if (req.user.is_active === true || req.user.linkedStudent.is_active === true) {
+        req.user.linkedStudent.update({ approval_status: 'approved', is_active: true, student_status: 'active' }).catch(() => {});
+        req.user.linkedStudent.approval_status = 'approved';
+      } else {
+        return res.status(401).json({ message: 'Student account is not approved.' });
+      }
     }
 
     // (M5 partial fix) — check if token was issued before a password change

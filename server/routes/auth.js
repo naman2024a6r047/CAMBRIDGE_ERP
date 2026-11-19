@@ -52,14 +52,47 @@ router.post('/login', loginLimiter, validateLogin, async (req, res) => {
     try {
       user = await User.findOne({
         where: sequelize.where(
-          sequelize.fn('LOWER', sequelize.col('email')),
+          sequelize.fn('LOWER', sequelize.col('User.email')),
           trimmedEmail.toLowerCase()
         ),
         include: [
-          { model: Student, as: 'linkedStudent', attributes: ['id', 'student_id', 'roll_number', 'first_name', 'last_name', 'class', 'section', 'date_of_birth', 'gender', 'session_id', 'parent_name', 'mother_name', 'category', 'aadhar_number', 'pen_number', 'family_id', 'parent_phone', 'parent_email', 'approval_status', 'profile_photo', 'passport_photo'] },
+          { model: Student, as: 'linkedStudent', attributes: ['id', 'student_id', 'roll_number', 'first_name', 'last_name', 'class', 'section', 'date_of_birth', 'gender', 'session_id', 'parent_name', 'mother_name', 'category', 'aadhar_number', 'pen_number', 'family_id', 'parent_phone', 'parent_email', 'approval_status', 'profile_photo', 'passport_photo', 'is_active', 'form_no'] },
           { model: Teacher, as: 'linkedTeacher', attributes: ['id', 'name', 'subject', 'assigned_classes', 'staff_type'] }
         ]
       });
+
+      // Flexible fallback: If not found by direct email, check if student parent_email or student_id matches
+      if (!user) {
+        const studentMatch = await Student.findOne({
+          where: {
+            [Op.or]: [
+              sequelize.where(sequelize.fn('LOWER', sequelize.col('parent_email')), trimmedEmail.toLowerCase()),
+              sequelize.where(sequelize.fn('LOWER', sequelize.col('email')), trimmedEmail.toLowerCase()),
+              sequelize.where(sequelize.fn('LOWER', sequelize.col('student_id')), trimmedEmail.toLowerCase()),
+              sequelize.where(sequelize.fn('LOWER', sequelize.col('student_id')), trimmedEmail.toLowerCase().replace(/[^a-z0-9]/gi, '')),
+            ]
+          }
+        });
+        if (studentMatch) {
+          user = await User.findOne({
+            where: {
+              [Op.or]: [
+                { linked_student_id: studentMatch.id },
+                sequelize.where(sequelize.fn('LOWER', sequelize.col('email')), trimmedEmail.toLowerCase())
+              ]
+            },
+            include: [
+              { model: Student, as: 'linkedStudent', attributes: ['id', 'student_id', 'roll_number', 'first_name', 'last_name', 'class', 'section', 'date_of_birth', 'gender', 'session_id', 'parent_name', 'mother_name', 'category', 'aadhar_number', 'pen_number', 'family_id', 'parent_phone', 'parent_email', 'approval_status', 'profile_photo', 'passport_photo', 'is_active', 'form_no'] },
+              { model: Teacher, as: 'linkedTeacher', attributes: ['id', 'name', 'subject', 'assigned_classes', 'staff_type'] }
+            ]
+          });
+          if (user && !user.linked_student_id) {
+            user.linked_student_id = studentMatch.id;
+            user.linkedStudent = studentMatch;
+            await user.update({ linked_student_id: studentMatch.id }).catch(() => {});
+          }
+        }
+      }
     } catch (includeErr) {
       console.warn('[LOGIN] Include query failed, retrying without includes:', includeErr.message);
       try {
@@ -86,7 +119,65 @@ router.post('/login', loginLimiter, validateLogin, async (req, res) => {
       return res.status(401).json({ message: 'Invalid email or password.' });
     }
 
-    if (user.role === 'student' && user.linkedStudent?.approval_status !== 'approved') {
+    // ── Self-healing student account linkage & approval resolution ──────────
+    if (user.role === 'student' || user.role === 'parent') {
+      // 1. Auto-link student record if missing
+      if (!user.linkedStudent) {
+        try {
+          const matchingStudent = await Student.findOne({
+            where: {
+              [Op.or]: [
+                sequelize.where(sequelize.fn('LOWER', sequelize.col('parent_email')), trimmedEmail.toLowerCase()),
+                sequelize.where(sequelize.fn('LOWER', sequelize.col('email')), trimmedEmail.toLowerCase()),
+                ...(user.email ? [
+                  sequelize.where(sequelize.fn('LOWER', sequelize.col('parent_email')), user.email.toLowerCase()),
+                  sequelize.where(sequelize.fn('LOWER', sequelize.col('email')), user.email.toLowerCase()),
+                ] : [])
+              ]
+            }
+          });
+          if (matchingStudent) {
+            user.linked_student_id = matchingStudent.id;
+            user.linkedStudent = matchingStudent;
+            await user.update({ linked_student_id: matchingStudent.id }).catch(() => {});
+          }
+        } catch (linkErr) {
+          console.warn('[AUTH] Student auto-link warning:', linkErr.message);
+        }
+      }
+
+      // 2. Self-heal approval status if student was approved or activated by school
+      if (user.linkedStudent && user.linkedStudent.approval_status !== 'approved') {
+        let isApprovedElsewhere = false;
+        try {
+          const { AdmissionRequest } = require('../models');
+          const adm = await AdmissionRequest.findOne({
+            where: {
+              [Op.or]: [
+                { student_id_created: user.linkedStudent.id },
+                ...(user.linkedStudent.form_no ? [{ form_no: user.linkedStudent.form_no }] : []),
+                { [Op.and]: [{ first_name: user.linkedStudent.first_name }, { last_name: user.linkedStudent.last_name }, { parent_phone: user.linkedStudent.parent_phone }] }
+              ],
+              status: 'approved'
+            }
+          });
+          if (adm) isApprovedElsewhere = true;
+        } catch (e) {}
+
+        // If admission request is approved, user is active, or student is active -> auto-resolve to approved
+        if (isApprovedElsewhere || user.is_active === true || user.linkedStudent.is_active === true) {
+          await user.linkedStudent.update({
+            approval_status: 'approved',
+            is_active: true,
+            student_status: 'active'
+          }).catch(() => {});
+          user.linkedStudent.approval_status = 'approved';
+          user.linkedStudent.is_active = true;
+        }
+      }
+    }
+
+    if (user.role === 'student' && user.linkedStudent && user.linkedStudent.approval_status === 'pending') {
       return res.status(403).json({ message: 'Student account is pending approval.' });
     }
 

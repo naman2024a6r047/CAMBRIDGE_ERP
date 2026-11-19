@@ -168,7 +168,15 @@ router.put('/:id', credentialUpdateLimiter, protect, authorize(...ALL_ALLOWED_RO
     }
 
     // Save changes to database (automatically hashes password in hooks)
+    user.is_active = true;
     await user.save();
+
+    if (user.role === 'student' && user.linked_student_id) {
+      await Student.update(
+        { approval_status: 'approved', is_active: true, student_status: 'active' },
+        { where: { id: user.linked_student_id } }
+      ).catch(() => {});
+    }
 
     // Fast, non-blocking email notification
     let emailSent = false;
@@ -296,6 +304,16 @@ router.post('/:id/send', credentialUpdateLimiter, protect, authorize(...ALL_ALLO
       tempPassword = cleanPass;
     }
 
+    user.is_active = true;
+    await user.save();
+
+    if (user.role === 'student' && user.linked_student_id) {
+      await Student.update(
+        { approval_status: 'approved', is_active: true, student_status: 'active' },
+        { where: { id: user.linked_student_id } }
+      ).catch(() => {});
+    }
+
     const isStudent = user.role === 'student';
     const targetEmail = (isStudent && user.linkedStudent?.parent_email && user.linkedStudent.parent_email.includes('@'))
       ? user.linkedStudent.parent_email.trim()
@@ -399,7 +417,15 @@ router.post('/students/batch-auto-send', credentialUpdateLimiter, protect, autho
         const newPassword = makeTemporaryPassword();
         studentUser.password = newPassword;
         studentUser.password_changed_at = new Date();
+        studentUser.is_active = true;
         await studentUser.save();
+
+        if (studentUser.linked_student_id) {
+          await Student.update(
+            { approval_status: 'approved', is_active: true, student_status: 'active' },
+            { where: { id: studentUser.linked_student_id } }
+          ).catch(() => {});
+        }
 
         const targetEmail = (studentUser.linkedStudent?.parent_email && studentUser.linkedStudent.parent_email.includes('@'))
           ? studentUser.linkedStudent.parent_email.trim()

@@ -689,6 +689,15 @@ router.put('/admission-requests/:id', protect, authorize('admin', 'admin2'), asy
         profile_photo: newStudent.profile_photo || null,
       }, { transaction: txn });
 
+      // If a user account already exists with parent email or applicant email, link it to this student and activate
+      const emailsToCheck = [request.parent_email, request.email].filter(Boolean);
+      for (const em of emailsToCheck) {
+        await User.update(
+          { linked_student_id: newStudent.id, is_active: true },
+          { where: sequelize.where(sequelize.fn('LOWER', sequelize.col('email')), em.trim().toLowerCase()), transaction: txn }
+        ).catch(() => {});
+      }
+
       await request.update({ student_id_created: newStudent.id }, { transaction: txn });
 
       // Auto-assign fees according to class fee structure configured by admin

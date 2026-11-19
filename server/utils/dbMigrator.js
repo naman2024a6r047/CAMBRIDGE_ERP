@@ -840,6 +840,82 @@ async function migrateStudentPhotos() {
   }
 }
 
+async function syncApprovedStudentAccounts() {
+  const { Op } = require('sequelize');
+  try {
+    // 1. Any student linked to an approved admission request should be approved & active
+    const approvedAdmissions = await AdmissionRequest.findAll({
+      where: { status: 'approved' },
+      attributes: ['id', 'student_id_created', 'first_name', 'last_name', 'parent_phone', 'parent_email']
+    });
+
+    for (const adm of approvedAdmissions) {
+      if (adm.student_id_created) {
+        await Student.update(
+          { approval_status: 'approved', is_active: true, student_status: 'active' },
+          { where: { id: adm.student_id_created, approval_status: 'pending' } }
+        ).catch(() => {});
+        await User.update(
+          { is_active: true },
+          { where: { linked_student_id: adm.student_id_created, is_active: false } }
+        ).catch(() => {});
+      }
+    }
+
+    // 2. Any active student in students table must have approval_status = 'approved'
+    await Student.update(
+      { approval_status: 'approved' },
+      { where: { is_active: true, approval_status: 'pending' } }
+    ).catch(() => {});
+
+    // 3. Any student with an active user account must have approval_status = 'approved'
+    const activeStudentUsers = await User.findAll({
+      where: { role: 'student', is_active: true, linked_student_id: { [Op.ne]: null } },
+      attributes: ['id', 'linked_student_id']
+    });
+    for (const u of activeStudentUsers) {
+      if (u.linked_student_id) {
+        await Student.update(
+          { approval_status: 'approved', is_active: true, student_status: 'active' },
+          { where: { id: u.linked_student_id, approval_status: 'pending' } }
+        ).catch(() => {});
+      }
+    }
+
+    // 4. Auto-link any unlinked student or parent users by matching email with student records
+    const unlinkedUsers = await User.findAll({
+      where: {
+        role: { [Op.in]: ['student', 'parent'] },
+        linked_student_id: null
+      },
+      attributes: ['id', 'email', 'is_active', 'role']
+    });
+
+    for (const u of unlinkedUsers) {
+      if (!u.email) continue;
+      const match = await Student.findOne({
+        where: {
+          [Op.or]: [
+            sequelize.where(sequelize.fn('LOWER', sequelize.col('parent_email')), u.email.toLowerCase()),
+            sequelize.where(sequelize.fn('LOWER', sequelize.col('email')), u.email.toLowerCase()),
+            sequelize.where(sequelize.fn('LOWER', sequelize.col('student_id')), u.email.toLowerCase().replace(/[^a-z0-9]/gi, '')),
+          ]
+        }
+      });
+      if (match) {
+        await u.update({ linked_student_id: match.id }).catch(() => {});
+        if (u.is_active || match.is_active) {
+          await match.update({ approval_status: 'approved', is_active: true, student_status: 'active' }).catch(() => {});
+          await u.update({ is_active: true }).catch(() => {});
+        }
+      }
+    }
+    console.log('[MIGRATOR] ✅ Approved student accounts and user links synchronized.');
+  } catch (err) {
+    console.warn('[MIGRATOR] Student approval account sync notice:', err.message);
+  }
+}
+
 module.exports = {
   migrateTeacherColumns,
   migrateUserColumns,
@@ -853,4 +929,5 @@ module.exports = {
   migrateAdmissionRequestColumns,
   migrateStudentPhotos,
   migrateNotificationColumns,
+  syncApprovedStudentAccounts,
 };
