@@ -333,10 +333,11 @@ router.put('/:id/approval', protect, authorize('admin', 'admin2', 'superadmin', 
 
           sendCredentialsEmail({
             to: targetEmail,
-            name: `${student.first_name} ${student.last_name}`,
+            name: `${student.first_name} ${student.last_name || ''}`.trim(),
             loginId: studentUser.email,
             password: tempPassword,
-            role: 'Student'
+            role: 'Student',
+            studentDetails: student,
           }).then(statusRes => {
             console.log(`[Student Approval] Credentials sent to ${targetEmail}: status ${statusRes}`);
           }).catch(err => {
@@ -921,10 +922,11 @@ router.post('/', protect, authorize('admin', 'admin2', 'fee_collector'), validat
       if (targetEmail) {
         sendCredentialsEmail({
           to: targetEmail,
-          name: `${student.first_name} ${student.last_name}`,
+          name: `${student.first_name} ${student.last_name || ''}`.trim(),
           loginId: userEmail,
           password: userPassword,
-          role: 'Student'
+          role: 'Student',
+          studentDetails: student,
         }).then(status => {
           console.log(`[Student Creation] Auto credentials email sent to ${targetEmail}: ${status}`);
         }).catch(err => {

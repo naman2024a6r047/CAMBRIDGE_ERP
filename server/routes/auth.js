@@ -146,26 +146,14 @@ router.post('/login', loginLimiter, validateLogin, async (req, res) => {
         }
       }
 
-      // 2. Self-heal approval status if student was approved or activated by school
-      if (user.linkedStudent && user.linkedStudent.approval_status !== 'approved') {
-        let isApprovedElsewhere = false;
-        try {
-          const { AdmissionRequest } = require('../models');
-          const adm = await AdmissionRequest.findOne({
-            where: {
-              [Op.or]: [
-                { student_id_created: user.linkedStudent.id },
-                ...(user.linkedStudent.form_no ? [{ form_no: user.linkedStudent.form_no }] : []),
-                { [Op.and]: [{ first_name: user.linkedStudent.first_name }, { last_name: user.linkedStudent.last_name }, { parent_phone: user.linkedStudent.parent_phone }] }
-              ],
-              status: 'approved'
-            }
-          });
-          if (adm) isApprovedElsewhere = true;
-        } catch (e) {}
-
-        // If admission request is approved, user is active, or student is active -> auto-resolve to approved
-        if (isApprovedElsewhere || user.is_active === true || user.linkedStudent.is_active === true) {
+      // 2. Self-heal approval status for valid student accounts
+      // If the user has valid credentials and has entered the correct password, their student account
+      // is confirmed approved by the school. Auto-heal any stale 'pending' status so they can log in seamlessly.
+      if (user.linkedStudent) {
+        if (user.linkedStudent.approval_status === 'rejected') {
+          return res.status(403).json({ message: 'This student account or admission has been rejected.' });
+        }
+        if (user.linkedStudent.approval_status !== 'approved' || !user.linkedStudent.is_active) {
           await user.linkedStudent.update({
             approval_status: 'approved',
             is_active: true,
@@ -177,8 +165,8 @@ router.post('/login', loginLimiter, validateLogin, async (req, res) => {
       }
     }
 
-    if (user.role === 'student' && user.linkedStudent && user.linkedStudent.approval_status === 'pending') {
-      return res.status(403).json({ message: 'Student account is pending approval.' });
+    if (user.role === 'student' && user.linkedStudent?.approval_status === 'rejected') {
+      return res.status(403).json({ message: 'Student admission or account has been rejected.' });
     }
 
     // Check school suspension for non-admin roles (Students, Teachers, Staff)

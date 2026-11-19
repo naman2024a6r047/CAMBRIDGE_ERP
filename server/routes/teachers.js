@@ -6,6 +6,7 @@ const { protect, authorize, hasPermission, isSuperAdmin } = require('../middlewa
 const { makeTeacherId, makeTemporaryPassword } = require('../utils/credentialGenerator');
 const { validateTeacherCreate, validateTeacherUpdate } = require('../middleware/validator');
 const { sendEmail } = require('../utils/emailService');
+const { sendCredentialsEmail } = require('../services/mailService');
 
 // (C3 fix) — whitelisted fields for teacher operations
 const TEACHER_CREATE_FIELDS = ['name', 'subject', 'phone', 'status', 'assigned_classes', 'qualification', 'experience', 'date_of_joining', 'email', 'password', 'document_type', 'document_number', 'staff_type'];
@@ -211,8 +212,17 @@ router.post('/', protect, authorize('admin', 'admin2'), validateTeacherCreate, a
     });
 
     // Send email asynchronously
-    const emailBody = `Hello ${teacher.name},\n\nYour staff account has been successfully created.\n\nUsername: ${userEmail}\nPassword: ${userPassword}\n\nPlease log in and change your password as soon as possible.\n\nBest Regards,\nSchool Admin`;
-    sendEmail(userEmail, 'Welcome to School ERP - Login Credentials', emailBody);
+        sendCredentialsEmail({
+      to: userEmail,
+      name: teacher.name,
+      loginId: userEmail,
+      password: userPassword,
+      role: 'Teacher',
+      teacherDetails: {
+        subject: teacher.subject,
+        assignedClasses: teacher.assigned_classes,
+      }
+    }).catch(e => console.warn('[teachers] Credentials email notification error:', e.message));
 
   } catch (err) {
     console.error('[teachers][POST /]', err);

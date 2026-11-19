@@ -104,7 +104,9 @@ app.use(securityLogger);
 
 // ── Serve React static files (production) ────────────────────────────────────
 const clientBuildPath = path.join(__dirname, '..', 'client', 'build');
+const clientRootPath = path.join(__dirname, '..', 'client');
 app.use(express.static(clientBuildPath));
+app.use(express.static(clientRootPath));
 
 // ── Serve uploaded files (avatars, documents) ─────────────────────────────────
 app.use('/uploads', express.static(path.join(__dirname, 'public', 'uploads')));
@@ -261,7 +263,10 @@ app.get('/api/seed-demo-data', async (req, res) => {
 // Any request that doesn't match an API route gets the React app's index.html,
 // allowing React Router to handle client-side routing.
 app.get('*', (req, res) => {
-  const indexPath = path.join(clientBuildPath, 'index.html');
+  let indexPath = path.join(clientBuildPath, 'index.html');
+  if (!fs.existsSync(indexPath)) {
+    indexPath = path.join(clientRootPath, 'index.html');
+  }
   if (fs.existsSync(indexPath)) {
     return res.sendFile(indexPath);
   }

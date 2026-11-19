@@ -729,10 +729,11 @@ router.put('/admission-requests/:id', protect, authorize('admin', 'admin2'), asy
       if (targetEmail) {
         sendCredentialsEmail({
           to: targetEmail,
-          name: `${newStudent.first_name} ${newStudent.last_name}`,
+          name: `${newStudent.first_name} ${newStudent.last_name || ''}`.trim(),
           loginId: makeStudentEmail(studentId),
           password: generatedPassword,
-          role: 'Student'
+          role: 'Student',
+          studentDetails: newStudent,
         }).then(statusRes => {
           console.log(`[Admission Approval] Auto credentials email sent to ${targetEmail}: status ${statusRes}`);
         }).catch(mailErr => {

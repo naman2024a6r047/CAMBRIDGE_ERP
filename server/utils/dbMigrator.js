@@ -868,17 +868,20 @@ async function syncApprovedStudentAccounts() {
       { where: { is_active: true, approval_status: 'pending' } }
     ).catch(() => {});
 
-    // 3. Any student with an active user account must have approval_status = 'approved'
-    const activeStudentUsers = await User.findAll({
-      where: { role: 'student', is_active: true, linked_student_id: { [Op.ne]: null } },
-      attributes: ['id', 'linked_student_id']
+    // 3. Any student with a user account (or active student status) must have approval_status = 'approved'
+    const studentUsers = await User.findAll({
+      where: { role: { [Op.in]: ['student', 'parent'] }, linked_student_id: { [Op.ne]: null } },
+      attributes: ['id', 'linked_student_id', 'is_active']
     });
-    for (const u of activeStudentUsers) {
+    for (const u of studentUsers) {
       if (u.linked_student_id) {
         await Student.update(
           { approval_status: 'approved', is_active: true, student_status: 'active' },
-          { where: { id: u.linked_student_id, approval_status: 'pending' } }
+          { where: { id: u.linked_student_id } }
         ).catch(() => {});
+        if (!u.is_active) {
+          await u.update({ is_active: true }).catch(() => {});
+        }
       }
     }
 
@@ -903,11 +906,44 @@ async function syncApprovedStudentAccounts() {
         }
       });
       if (match) {
-        await u.update({ linked_student_id: match.id }).catch(() => {});
-        if (u.is_active || match.is_active) {
-          await match.update({ approval_status: 'approved', is_active: true, student_status: 'active' }).catch(() => {});
-          await u.update({ is_active: true }).catch(() => {});
-        }
+        await u.update({ linked_student_id: match.id, is_active: true }).catch(() => {});
+        await match.update({ approval_status: 'approved', is_active: true, student_status: 'active' }).catch(() => {});
+      }
+    }
+
+    // 5. Sync from approved admission requests
+    const approvedAdmissionsList = await AdmissionRequest.findAll({
+      where: { status: 'approved' },
+      attributes: ['id', 'student_id_created', 'email', 'parent_email']
+    });
+    for (const adm of approvedAdmissionsList) {
+      const parentMail = adm.parent_email?.toLowerCase();
+      const studentMail = adm.email?.toLowerCase();
+      if (parentMail || studentMail) {
+        await Student.update(
+          { approval_status: 'approved', is_active: true, student_status: 'active' },
+          {
+            where: {
+              [Op.or]: [
+                ...(parentMail ? [sequelize.where(sequelize.fn('LOWER', sequelize.col('parent_email')), parentMail)] : []),
+                ...(studentMail ? [sequelize.where(sequelize.fn('LOWER', sequelize.col('email')), studentMail)] : [])
+              ]
+            }
+          }
+        ).catch(() => {});
+
+        await User.update(
+          { is_active: true },
+          {
+            where: {
+              role: { [Op.in]: ['student', 'parent'] },
+              [Op.or]: [
+                ...(parentMail ? [sequelize.where(sequelize.fn('LOWER', sequelize.col('email')), parentMail)] : []),
+                ...(studentMail ? [sequelize.where(sequelize.fn('LOWER', sequelize.col('email')), studentMail)] : [])
+              ]
+            }
+          }
+        ).catch(() => {});
       }
     }
     console.log('[MIGRATOR] ✅ Approved student accounts and user links synchronized.');

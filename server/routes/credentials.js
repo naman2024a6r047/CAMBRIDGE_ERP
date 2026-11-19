@@ -193,7 +193,9 @@ router.put('/:id', credentialUpdateLimiter, protect, authorize(...ALL_ALLOWED_RO
           name: user.name,
           loginId: user.email,
           password: emailPass,
-          role: user.role === 'student' ? 'Student' : (user.role === 'teacher' ? 'Teacher' : 'Fee Collector')
+          role: user.role === 'student' ? 'Student' : (user.role === 'teacher' ? 'Teacher' : 'Fee Collector'),
+          studentDetails: user.linkedStudent,
+          teacherDetails: user.linkedTeacher,
         });
 
         // Fast race with 2.5s timeout: keeps UI snappy even on slow SMTP connections
@@ -329,7 +331,9 @@ router.post('/:id/send', credentialUpdateLimiter, protect, authorize(...ALL_ALLO
         name: user.name,
         loginId: user.email,
         password: passwordToSend,
-        role: displayRole
+        role: displayRole,
+        studentDetails: user.linkedStudent,
+        teacherDetails: user.linkedTeacher,
       });
       const timeoutTask = new Promise((resolve) => setTimeout(() => resolve('timeout'), 2500));
       const outcome = await Promise.race([emailTask, timeoutTask]);
@@ -437,7 +441,8 @@ router.post('/students/batch-auto-send', credentialUpdateLimiter, protect, autho
           name: studentUser.name,
           loginId: studentUser.email,
           password: newPassword,
-          role: 'Student'
+          role: 'Student',
+          studentDetails: studentUser.linkedStudent,
         }).then(status => {
           console.log(`[Batch Credentials] Auto password dispatched for ${studentUser.name} to ${targetEmail}: status ${status}`);
         }).catch(err => {

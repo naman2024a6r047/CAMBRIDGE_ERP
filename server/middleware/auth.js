@@ -28,7 +28,7 @@ const protect = async (req, res, next) => {
     req.user = await User.findByPk(decoded.id, {
       attributes: { exclude: ['password'] },
       include: [
-        { model: Student, as: 'linkedStudent', attributes: ['id', 'student_id', 'roll_number', 'first_name', 'last_name', 'class', 'section', 'date_of_birth', 'gender', 'session_id', 'parent_name', 'parent_phone', 'parent_email', 'approval_status', 'profile_photo', 'passport_photo'] },
+        { model: Student, as: 'linkedStudent', attributes: ['id', 'student_id', 'roll_number', 'first_name', 'last_name', 'class', 'section', 'date_of_birth', 'gender', 'session_id', 'parent_name', 'parent_phone', 'parent_email', 'approval_status', 'profile_photo', 'passport_photo', 'is_active'] },
         { model: Teacher, as: 'linkedTeacher', attributes: ['id', 'name', 'subject', 'assigned_classes'] }
       ],
     });
@@ -51,13 +51,13 @@ const protect = async (req, res, next) => {
       }
     }
 
-    if (req.user.role === 'student' && req.user.linkedStudent && req.user.linkedStudent.approval_status === 'pending') {
-      if (req.user.is_active === true || req.user.linkedStudent.is_active === true) {
-        req.user.linkedStudent.update({ approval_status: 'approved', is_active: true, student_status: 'active' }).catch(() => {});
-        req.user.linkedStudent.approval_status = 'approved';
-      } else {
-        return res.status(401).json({ message: 'Student account is not approved.' });
+    if (req.user.role === 'student' && req.user.linkedStudent && req.user.linkedStudent.approval_status !== 'approved') {
+      if (req.user.linkedStudent.approval_status === 'rejected') {
+        return res.status(403).json({ message: 'Student account has been rejected.' });
       }
+      req.user.linkedStudent.update({ approval_status: 'approved', is_active: true, student_status: 'active' }).catch(() => {});
+      req.user.linkedStudent.approval_status = 'approved';
+      req.user.linkedStudent.is_active = true;
     }
 
     // (M5 partial fix) — check if token was issued before a password change
